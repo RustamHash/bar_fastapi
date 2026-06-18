@@ -1,0 +1,56 @@
+http:
+  routers:
+    bar-secure:
+      rule: Host(`bar.adgsklad.ru`)
+      entryPoints:
+        - websecure
+      service: bar-frontend
+      tls:
+        certResolver: letsencrypt
+
+    bar-api-secure:
+      rule: Host(`bar.adgsklad.ru`) && PathPrefix(`/api`)
+      entryPoints:
+        - websecure
+      service: bar-api
+      tls:
+        certResolver: letsencrypt
+
+    bar-docs-secure:
+      rule: Host(`bar.adgsklad.ru`) && PathPrefix(`/docs`)
+      entryPoints:
+        - websecure
+      service: bar-api
+      tls:
+        certResolver: letsencrypt
+
+    bar-openapi-secure:
+      rule: Host(`bar.adgsklad.ru`) && PathPrefix(`/openapi.json`)
+      entryPoints:
+        - websecure
+      service: bar-api
+      tls:
+        certResolver: letsencrypt
+
+    bar-ip:
+      rule: Host(`194.150.254.99`)
+      entryPoints:
+        - web8000
+      service: bar-frontend
+
+    bar-api-ip:
+      rule: Host(`194.150.254.99`) && PathPrefix(`/api`)
+      entryPoints:
+        - web8000
+      service: bar-api
+
+  services:
+    bar-frontend:
+      loadBalancer:
+        servers:
+          - url: http://172.18.0.1:3000
+
+    bar-api:
+      loadBalancer:
+        servers:
+          - url: http://172.18.0.1:8000

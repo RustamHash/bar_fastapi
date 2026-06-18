@@ -1,0 +1,18 @@
+[Unit]
+Description=BeerPub Backend (FastAPI)
+After=network-online.target postgresql.service docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=server
+Group=server
+WorkingDirectory=/data/projects/bar_fastapi
+EnvironmentFile=/data/projects/bar_fastapi/.env
+ExecStart=/usr/bin/docker compose up backend frontend
+ExecStop=/usr/bin/docker compose stop
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
