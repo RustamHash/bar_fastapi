@@ -1,5 +1,5 @@
-version: "3.8"
-
+# Продакшен: PostgreSQL на хосте (см. .env.example).
+# Локально docker compose автоматически подхватывает docker-compose.override.yml с PostgreSQL в контейнере.
 services:
   backend:
     build: ./backend

@@ -2,20 +2,30 @@
 
 Веб-приложение для учёта товаров, заказов, накладных, кассовых смен и отчётов. Поддерживает составные товары (комплекты) с автоматическим списанием компонентов по FIFO.
 
-## Быстрый старт
+## Быстрый старт (локально)
 
 ```bash
-docker-compose up -d
-docker compose up -d
+cp .env.example .env
+docker compose up -d --build
 ```
+
+Docker Compose автоматически подключает `docker-compose.override.yml` — PostgreSQL поднимается в контейнере.
 
 После запуска:
 
 | Сервис    | URL                          |
 |-----------|------------------------------|
-| Frontend  | http://localhost:8080        |
+| Frontend  | http://localhost:3000        |
 | API docs  | http://localhost:8000/docs   |
-| PostgreSQL | localhost:5433              |
+| PostgreSQL | внутри Docker-сети (сервис `db`) |
+
+## Деплой на сервер
+
+На сервере используется только `docker-compose.yml` (PostgreSQL на хосте).  
+`docker-compose.override.yml` применяется только локально.
+
+Автодеплой: push в `main` → GitHub Actions → SSH на сервер.  
+Подробная инструкция: [deploy/README.md](deploy/README.md).
 
 ### Учётные данные приложения
 
@@ -24,7 +34,7 @@ docker compose up -d
 | admin      | beer123  | Администратор |
 | bartender  | beer123  | Бармен     |
 
-Подключение к БД: `localhost:5433`, пользователь/пароль/БД — из файла `.env`.
+Подключение к БД из контейнеров: хост `db`, порт `5432`, учётные данные — из файла `.env`.
 
 ## Стек
 
@@ -114,11 +124,11 @@ Dev-сервер Vite проксирует `/api` на `http://localhost:8000`.
 ## Остановка
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 Для удаления данных БД:
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
