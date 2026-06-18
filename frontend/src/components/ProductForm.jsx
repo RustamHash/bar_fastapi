@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal, Form, Input, InputNumber, Select, Switch, Tabs, Table, Button, Space, message } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, BarcodeOutlined } from '@ant-design/icons';
 import { productsApi } from '../api';
 
 const CATEGORIES = [
@@ -44,6 +44,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
         ibu: product.ibu,
         is_kit: product.is_kit,
         kit_price_type: product.kit_price_type || 'manual',
+        barcode: product.barcode || '',
       });
       setIsKit(product.is_kit);
       setComponents(
@@ -58,11 +59,21 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
       );
     } else {
       form.resetFields();
-      form.setFieldsValue({ kit_price_type: 'manual', min_stock: 0 });
+      form.setFieldsValue({ kit_price_type: 'manual', min_stock: 0, barcode: '' });
       setIsKit(false);
       setComponents([]);
     }
   }, [product, open, form]);
+
+  const handleGenerateBarcode = async () => {
+    try {
+      const res = await productsApi.generateBarcode();
+      form.setFieldsValue({ barcode: res.data.barcode });
+      message.success('Штрихкод сгенерирован');
+    } catch {
+      message.error('Ошибка генерации штрихкода');
+    }
+  };
 
   const handleSubmit = async () => {
     try {
@@ -71,6 +82,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
 
       const data = {
         ...values,
+        barcode: values.barcode?.trim() || null,
         is_kit: isKit,
         kit_price_type: isKit ? values.kit_price_type : null,
         components: isKit
@@ -228,6 +240,30 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
           <Form.Item name="min_stock" label="Мин. остаток">
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
+          {!isKit && (
+            <Form.Item label="Штрихкод">
+              <Space.Compact style={{ width: '100%' }}>
+                <Form.Item
+                  name="barcode"
+                  noStyle
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        if (!value || !value.trim()) return Promise.resolve();
+                        if (/^\d{8,13}$/.test(value.trim())) return Promise.resolve();
+                        return Promise.reject(new Error('Штрихкод: 8–13 цифр (EAN-8/EAN-13)'));
+                      },
+                    },
+                  ]}
+                >
+                  <Input maxLength={13} placeholder="4601234567890" style={{ width: 'calc(100% - 140px)' }} />
+                </Form.Item>
+                <Button icon={<BarcodeOutlined />} onClick={handleGenerateBarcode}>
+                  Сгенерировать
+                </Button>
+              </Space.Compact>
+            </Form.Item>
+          )}
           <Form.Item noStyle shouldUpdate={(prev, cur) => prev.category !== cur.category}>
             {({ getFieldValue }) =>
               getFieldValue('category') === 'beer' ? (

@@ -16,6 +16,8 @@ from app.schemas.product import (
 )
 from app.services.batch_service import get_product_stock
 from app.services.kit_service import calculate_kit_price
+from app.services.barcode_service import normalize_barcode, generate_internal_ean13
+from app.schemas.receiving import BarcodeBindRequest, BarcodeProductResponse
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 
@@ -51,6 +53,7 @@ def build_product_response(db: Session, product: Product) -> ProductResponse:
         is_kit=product.is_kit,
         kit_price_type=product.kit_price_type,
         is_active=product.is_active,
+        barcode=product.barcode,
         created_at=product.created_at,
         updated_at=product.updated_at,
         components=components,
@@ -73,6 +76,51 @@ def list_products(
         query = query.filter(Product.category == category)
     products = query.order_by(Product.name).all()
     return [build_product_response(db, p) for p in products]
+
+
+def check_barcode_unique(db: Session, barcode: str, exclude_product_id: int | None = None) -> None:
+    if not barcode:
+        return
+    barcode = normalize_barcode(barcode)
+    query = db.query(Product).filter(Product.barcode == barcode)
+    if exclude_product_id:
+        query = query.filter(Product.id != exclude_product_id)
+    if query.first():
+        raise HTTPException(status_code=400, detail="Штрихкод уже используется другим товаром")
+
+
+@router.get("/by-barcode/{barcode}", response_model=BarcodeProductResponse)
+def get_product_by_barcode(
+    barcode: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    barcode = normalize_barcode(barcode)
+    product = db.query(Product).filter(Product.barcode == barcode).first()
+    if not product:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "not_found", "barcode": barcode},
+        )
+    stock = 0.0 if product.is_kit else get_product_stock(db, product.id)
+    return BarcodeProductResponse(
+        id=product.id,
+        name=product.name,
+        unit=product.unit,
+        retail_price=product.retail_price,
+        stock=stock,
+        barcode=product.barcode,
+    )
+
+
+@router.get("/generate-barcode")
+def generate_barcode(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    existing = {row.barcode for row in db.query(Product).filter(Product.barcode.isnot(None)).all()}
+    barcode = generate_internal_ean13(existing)
+    return {"barcode": barcode}
 
 
 @router.get("/available-components", response_model=list[ProductResponse])
@@ -120,6 +168,9 @@ def create_product(
             if component.is_kit:
                 raise HTTPException(status_code=400, detail="Нельзя добавить комплект как компонент")
 
+    if data.barcode:
+        check_barcode_unique(db, data.barcode)
+
     product = Product(
         name=data.name,
         category=data.category,
@@ -130,6 +181,7 @@ def create_product(
         ibu=data.ibu,
         is_kit=data.is_kit,
         kit_price_type=data.kit_price_type if data.is_kit else None,
+        barcode=normalize_barcode(data.barcode) if data.barcode else None,
     )
     db.add(product)
     db.flush()
@@ -174,6 +226,9 @@ def update_product(
     if not product:
         raise HTTPException(status_code=404, detail="Товар не найден")
 
+    if data.barcode is not None:
+        check_barcode_unique(db, data.barcode, exclude_product_id=product.id)
+
     if data.retail_price is not None and data.retail_price != product.retail_price:
         db.add(
             PriceHistory(
@@ -185,6 +240,8 @@ def update_product(
 
     update_data = data.model_dump(exclude_unset=True, exclude={"components"})
     for key, value in update_data.items():
+        if key == "barcode" and value:
+            value = normalize_barcode(value)
         setattr(product, key, value)
 
     if data.components is not None and product.is_kit:
@@ -269,3 +326,35 @@ def get_price_history(
         .all()
     )
     return history
+
+
+@router.post("/{product_id}/barcode")
+def bind_barcode(
+    product_id: int,
+    data: BarcodeBindRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Товар не найден")
+
+    barcode = normalize_barcode(data.barcode)
+    check_barcode_unique(db, barcode, exclude_product_id=product_id)
+    product.barcode = barcode
+    db.commit()
+    return {"message": "Штрихкод привязан", "barcode": barcode}
+
+
+@router.delete("/{product_id}/barcode")
+def unbind_barcode(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Товар не найден")
+    product.barcode = None
+    db.commit()
+    return {"message": "Штрихкод отвязан"}

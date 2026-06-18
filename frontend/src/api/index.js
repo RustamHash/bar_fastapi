@@ -37,6 +37,10 @@ export const productsApi = {
   batches: (id) => api.get(`/products/${id}/batches`),
   priceHistory: (id) => api.get(`/products/${id}/price-history`),
   availableComponents: () => api.get('/products/available-components'),
+  byBarcode: (barcode) => api.get(`/products/by-barcode/${encodeURIComponent(barcode)}`),
+  bindBarcode: (id, barcode) => api.post(`/products/${id}/barcode`, { barcode }),
+  unbindBarcode: (id) => api.delete(`/products/${id}/barcode`),
+  generateBarcode: () => api.get('/products/generate-barcode'),
 };
 
 export const invoicesApi = {
@@ -51,6 +55,18 @@ export const ordersApi = {
   create: (data) => api.post('/orders', data),
   pay: (id) => api.post(`/orders/${id}/pay`),
   cancel: (id) => api.post(`/orders/${id}/cancel`),
+  scan: (data) => api.post('/orders/scan', data),
+  scanStatus: (id) => api.get(`/orders/${id}/scan-status`),
+};
+
+export const receivingApi = {
+  listSessions: () => api.get('/receiving/sessions'),
+  getSession: (id) => api.get(`/receiving/sessions/${id}`),
+  createSession: (data) => api.post('/receiving/sessions', data),
+  scan: (data) => api.post('/receiving/scan', data),
+  addItem: (sessionId, data) => api.post(`/receiving/sessions/${sessionId}/add-item`, data),
+  linkItem: (sessionId, data) => api.post(`/receiving/sessions/${sessionId}/link-item`, data),
+  confirm: (sessionId) => api.post(`/receiving/sessions/${sessionId}/confirm`),
 };
 
 export const receiptApi = {

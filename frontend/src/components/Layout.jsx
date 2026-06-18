@@ -9,6 +9,7 @@ import {
   BarChartOutlined,
   LogoutOutlined,
   CoffeeOutlined,
+  InboxOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = AntLayout;
@@ -18,6 +19,7 @@ const menuItems = [
   { key: '/orders', icon: <ShoppingCartOutlined />, label: 'Заказы' },
   { key: '/products', icon: <AppstoreOutlined />, label: 'Товары' },
   { key: '/invoices', icon: <FileTextOutlined />, label: 'Накладные' },
+  { key: '/receiving', icon: <InboxOutlined />, label: 'Приёмка' },
   { key: '/cash', icon: <DollarOutlined />, label: 'Касса' },
   { key: '/reports', icon: <BarChartOutlined />, label: 'Отчёты' },
 ];

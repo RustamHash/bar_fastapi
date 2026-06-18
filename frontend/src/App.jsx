@@ -7,6 +7,7 @@ import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
 import CashRegister from './pages/CashRegister';
 import Reports from './pages/Reports';
+import Receiving from './pages/Receiving';
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="orders" element={<Orders />} />
         <Route path="products" element={<Products />} />
         <Route path="invoices" element={<Invoices />} />
+        <Route path="receiving" element={<Receiving />} />
         <Route path="cash" element={<CashRegister />} />
         <Route path="reports" element={<Reports />} />
       </Route>

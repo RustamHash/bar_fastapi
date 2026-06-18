@@ -8,9 +8,13 @@ from app.models.cash import CashSession
 from app.models.order import Order, OrderItem
 from app.models.product import Product, KitComponent
 from app.routers.auth import get_current_user, User
-from app.schemas.order import OrderCreate, OrderResponse, OrderItemResponse, OrderListResponse
+from app.schemas.order import (
+    OrderCreate, OrderResponse, OrderItemResponse, OrderListResponse,
+    OrderScanRequest, OrderScanResponse, OrderScanStatusResponse, OrderScanStatusItem,
+)
 from app.services.batch_service import deduct_from_batches, return_to_batches, InsufficientStockError
 from app.services.kit_service import calculate_kit_price, expand_kit_components, check_simple_product_stock
+from app.services.barcode_service import normalize_barcode
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
@@ -59,6 +63,7 @@ def build_order_item_response(item: OrderItem, db: Session) -> OrderItemResponse
         show_in_receipt=item.show_in_receipt,
         show_in_order=show_in_order,
         unit=item.product.unit,
+        scanned_quantity=item.scanned_quantity,
     )
 
 
@@ -73,6 +78,7 @@ def build_order_response(order: Order, db: Session) -> OrderResponse:
         total=order.total,
         total_cost=order.total_cost,
         cash_session_id=order.cash_session_id,
+        all_scanned=order.all_scanned,
         created_at=order.created_at,
         paid_at=order.paid_at,
         items=items,
@@ -160,6 +166,116 @@ def process_order_item(
     return subtotal, total_cost
 
 
+def get_scannable_items(order: Order, db: Session) -> list[OrderItem]:
+    """Items that need scanning: simple products and kit components."""
+    result = []
+    for item in order.items:
+        product = item.product
+        if item.is_kit_component:
+            result.append(item)
+        elif not product.is_kit:
+            result.append(item)
+    return result
+
+
+def check_order_all_scanned(order: Order, db: Session) -> bool:
+    scannable = get_scannable_items(order, db)
+    if not scannable:
+        return False
+    return all(item.scanned_quantity >= item.quantity for item in scannable)
+
+
+@router.post("/scan", response_model=OrderScanResponse)
+def scan_order_item(
+    data: OrderScanRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    order = (
+        db.query(Order)
+        .options(joinedload(Order.items).joinedload(OrderItem.product))
+        .filter(Order.id == data.order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+    if order.status != "open":
+        raise HTTPException(status_code=400, detail="Сканирование доступно только для открытых заказов")
+
+    barcode = normalize_barcode(data.barcode)
+    product = db.query(Product).filter(Product.barcode == barcode).first()
+
+    if not product:
+        return OrderScanResponse(
+            product_name="Неизвестный товар",
+            in_order=False,
+            scanned=0,
+            need=0,
+            order_complete=order.all_scanned,
+        )
+
+    matching_items = [
+        item for item in get_scannable_items(order, db)
+        if item.product_id == product.id
+    ]
+
+    if not matching_items:
+        return OrderScanResponse(
+            product_name=product.name,
+            in_order=False,
+            scanned=0,
+            need=0,
+            order_complete=order.all_scanned,
+        )
+
+    target = min(matching_items, key=lambda i: i.scanned_quantity / i.quantity if i.quantity else 0)
+    target.scanned_quantity += 1
+    order.all_scanned = check_order_all_scanned(order, db)
+    db.commit()
+
+    need = max(0, target.quantity - target.scanned_quantity)
+    return OrderScanResponse(
+        product_name=product.name,
+        in_order=True,
+        scanned=target.scanned_quantity,
+        need=need,
+        order_complete=order.all_scanned,
+    )
+
+
+@router.get("/{order_id}/scan-status", response_model=OrderScanStatusResponse)
+def get_scan_status(
+    order_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    order = (
+        db.query(Order)
+        .options(joinedload(Order.items).joinedload(OrderItem.product))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+
+    items = []
+    for item in get_scannable_items(order, db):
+        items.append(
+            OrderScanStatusItem(
+                product_name=item.product.name,
+                quantity=item.quantity,
+                scanned_quantity=item.scanned_quantity,
+                complete=item.scanned_quantity >= item.quantity,
+            )
+        )
+
+    return OrderScanStatusResponse(
+        order_id=order.id,
+        all_scanned=order.all_scanned,
+        items=items,
+    )
+
+
 @router.post("", response_model=OrderResponse, status_code=201)
 def create_order(
     data: OrderCreate,
@@ -237,6 +353,7 @@ def list_orders(
                 total=order.total,
                 total_cost=order.total_cost,
                 items_count=len(main_items),
+                all_scanned=order.all_scanned,
                 created_at=order.created_at,
                 paid_at=order.paid_at,
             )

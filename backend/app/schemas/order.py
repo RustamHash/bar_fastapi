@@ -28,6 +28,7 @@ class OrderItemResponse(BaseModel):
     show_in_receipt: bool
     show_in_order: bool = True
     unit: str
+    scanned_quantity: float = 0.0
 
     model_config = {"from_attributes": True}
 
@@ -41,6 +42,7 @@ class OrderResponse(BaseModel):
     total: float
     total_cost: float
     cash_session_id: int | None
+    all_scanned: bool = False
     created_at: datetime
     paid_at: datetime | None
     items: list[OrderItemResponse] = Field(default_factory=list)
@@ -57,7 +59,34 @@ class OrderListResponse(BaseModel):
     total: float
     total_cost: float
     items_count: int
+    all_scanned: bool = False
     created_at: datetime
     paid_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class OrderScanRequest(BaseModel):
+    order_id: int
+    barcode: str
+
+
+class OrderScanResponse(BaseModel):
+    product_name: str
+    in_order: bool
+    scanned: float
+    need: float
+    order_complete: bool
+
+
+class OrderScanStatusItem(BaseModel):
+    product_name: str
+    quantity: float
+    scanned_quantity: float
+    complete: bool
+
+
+class OrderScanStatusResponse(BaseModel):
+    order_id: int
+    all_scanned: bool
+    items: list[OrderScanStatusItem]

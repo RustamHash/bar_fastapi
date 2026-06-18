@@ -11,14 +11,14 @@ def seed_database(db: Session) -> None:
         return
 
     products_data = [
-        {"name": "Жигулевское (литр)", "category": "beer", "unit": "liter", "retail_price": 400, "min_stock": 10, "abv": 4.5},
-        {"name": "Чешское (литр)", "category": "beer", "unit": "liter", "retail_price": 500, "min_stock": 10, "abv": 4.8},
-        {"name": "IPA (литр)", "category": "beer", "unit": "liter", "retail_price": 700, "min_stock": 5, "abv": 6.5},
-        {"name": "Бутылка ПЭТ 1.5л", "category": "packaging", "unit": "piece", "retail_price": 50, "min_stock": 20},
-        {"name": "Крышка", "category": "packaging", "unit": "piece", "retail_price": 5, "min_stock": 50},
-        {"name": "Бокал пластиковый", "category": "packaging", "unit": "piece", "retail_price": 30, "min_stock": 30},
-        {"name": "Гренки чесночные", "category": "snack", "unit": "piece", "retail_price": 150, "min_stock": 5},
-        {"name": "Кальмар сушёный", "category": "snack", "unit": "kg", "retail_price": 800, "min_stock": 2},
+        {"name": "Жигулевское (литр)", "category": "beer", "unit": "liter", "retail_price": 400, "min_stock": 10, "abv": 4.5, "barcode": "4601234567010"},
+        {"name": "Чешское (литр)", "category": "beer", "unit": "liter", "retail_price": 500, "min_stock": 10, "abv": 4.8, "barcode": "4601234567027"},
+        {"name": "IPA (литр)", "category": "beer", "unit": "liter", "retail_price": 700, "min_stock": 5, "abv": 6.5, "barcode": "4601234567034"},
+        {"name": "Бутылка ПЭТ 1.5л", "category": "packaging", "unit": "piece", "retail_price": 50, "min_stock": 20, "barcode": "4601234567041"},
+        {"name": "Крышка", "category": "packaging", "unit": "piece", "retail_price": 5, "min_stock": 50, "barcode": "4601234567058"},
+        {"name": "Бокал пластиковый", "category": "packaging", "unit": "piece", "retail_price": 30, "min_stock": 30, "barcode": "4601234567065"},
+        {"name": "Гренки чесночные", "category": "snack", "unit": "piece", "retail_price": 150, "min_stock": 5, "barcode": "4601234567072"},
+        {"name": "Кальмар сушёный", "category": "snack", "unit": "kg", "retail_price": 800, "min_stock": 2, "barcode": "4601234567089"},
     ]
 
     products = {}

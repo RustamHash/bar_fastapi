@@ -19,6 +19,7 @@ class Order(Base):
     cash_session_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("cash_sessions.id"), nullable=True
     )
+    all_scanned: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
@@ -47,6 +48,7 @@ class OrderItem(Base):
     )
     kit_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("products.id"), nullable=True)
     show_in_receipt: Mapped[bool] = mapped_column(Boolean, default=True)
+    scanned_quantity: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     order: Mapped["Order"] = relationship("Order", back_populates="items", foreign_keys=[order_id])

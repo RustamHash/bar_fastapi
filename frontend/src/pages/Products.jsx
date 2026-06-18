@@ -116,6 +116,11 @@ export default function Products() {
       render: (v) => `${v} ₽`,
     },
     {
+      title: 'Штрихкод',
+      dataIndex: 'barcode',
+      render: (v) => v || '—',
+    },
+    {
       title: 'Остаток',
       dataIndex: 'stock',
       render: (val, record) => {

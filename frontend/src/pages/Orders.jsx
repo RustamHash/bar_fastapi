@@ -1,13 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Table, Button, Tag, Space, Typography, Select, Modal, InputNumber, message, Popconfirm,
+  Progress, Drawer,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, PrinterOutlined,
+  ScanOutlined, EyeOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ordersApi, productsApi, receiptApi } from '../api';
 import ReceiptModal from '../components/ReceiptModal';
+import { BarcodeInput } from '../components/BarcodeInput';
+import { playSound } from '../utils/sounds';
 
 const { Title } = Typography;
 
@@ -29,6 +33,10 @@ export default function Orders() {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
+  const [viewOrder, setViewOrder] = useState(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [pickMode, setPickMode] = useState(false);
+  const [scanStatus, setScanStatus] = useState(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -123,6 +131,60 @@ export default function Orders() {
     }
   };
 
+  const openOrderView = async (orderId) => {
+    setViewLoading(true);
+    setPickMode(false);
+    try {
+      const res = await ordersApi.get(orderId);
+      setViewOrder(res.data);
+      const statusRes = await ordersApi.scanStatus(orderId);
+      setScanStatus(statusRes.data);
+    } catch {
+      message.error('Ошибка загрузки заказа');
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  const startPickMode = async () => {
+    if (!viewOrder) return;
+    setPickMode(true);
+    const statusRes = await ordersApi.scanStatus(viewOrder.id);
+    setScanStatus(statusRes.data);
+  };
+
+  const handleOrderScan = async (barcode) => {
+    if (!viewOrder) return;
+    try {
+      const res = await ordersApi.scan({ order_id: viewOrder.id, barcode });
+      const data = res.data;
+      if (!data.in_order) {
+        playSound('error');
+        message.warning(`${data.product_name} — не в заказе`);
+      } else if (data.order_complete) {
+        playSound('success');
+        message.success('Заказ полностью собран!');
+      } else {
+        playSound('success');
+        message.info(`${data.product_name}: ${data.scanned} / ${data.scanned + data.need}`);
+      }
+      const statusRes = await ordersApi.scanStatus(viewOrder.id);
+      setScanStatus(statusRes.data);
+      const orderRes = await ordersApi.get(viewOrder.id);
+      setViewOrder(orderRes.data);
+      fetchOrders();
+    } catch (err) {
+      playSound('error');
+      message.error(err.response?.data?.detail || 'Ошибка сканирования');
+    }
+  };
+
+  const calcPickProgress = () => {
+    if (!scanStatus?.items?.length) return 0;
+    const complete = scanStatus.items.filter((i) => i.complete).length;
+    return Math.round(complete / scanStatus.items.length * 100);
+  };
+
   const columns = [
     { title: '№', dataIndex: 'id', width: 60 },
     { title: 'Стол', dataIndex: 'table_num', width: 60 },
@@ -177,6 +239,13 @@ export default function Orders() {
             onClick={() => handlePrint(record.id)}
           >
             Чек
+          </Button>
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => openOrderView(record.id)}
+          >
+            Просмотр
           </Button>
         </Space>
       ),
@@ -263,6 +332,64 @@ export default function Orders() {
         loading={receiptLoading}
         onClose={() => { setReceiptOpen(false); setReceipt(null); }}
       />
+
+      <Drawer
+        title={viewOrder ? `Заказ #${viewOrder.id} — стол ${viewOrder.table_num}` : 'Заказ'}
+        open={!!viewOrder}
+        onClose={() => { setViewOrder(null); setPickMode(false); setScanStatus(null); }}
+        width={600}
+        loading={viewLoading}
+        extra={
+          viewOrder?.status === 'open' && !pickMode ? (
+            <Button type="primary" icon={<ScanOutlined />} onClick={startPickMode}>
+              Режим сборки
+            </Button>
+          ) : null
+        }
+      >
+        {viewOrder && (
+          <>
+            {pickMode && (
+              <div style={{ marginBottom: 16 }}>
+                <BarcodeInput onScan={handleOrderScan} />
+                <Progress percent={calcPickProgress()} style={{ marginTop: 12 }} />
+              </div>
+            )}
+
+            <Table
+              dataSource={(pickMode ? scanStatus?.items : viewOrder.items.filter((i) => !i.is_kit_component || i.show_in_order)) || []}
+              rowKey={(r) => r.id || r.product_name}
+              pagination={false}
+              size="small"
+              columns={pickMode ? [
+                { title: 'Товар', dataIndex: 'product_name' },
+                {
+                  title: 'Прогресс',
+                  render: (_, r) => {
+                    const color = r.complete ? 'green' : r.scanned_quantity > 0 ? 'gold' : 'default';
+                    return (
+                      <Tag color={color}>
+                        {r.scanned_quantity} / {r.quantity}
+                      </Tag>
+                    );
+                  },
+                },
+              ] : [
+                { title: 'Товар', dataIndex: 'product_name' },
+                { title: 'Кол-во', dataIndex: 'quantity' },
+                { title: 'Цена', dataIndex: 'price', render: (v) => `${v} ₽` },
+                { title: 'Сумма', dataIndex: 'total', render: (v) => `${v} ₽` },
+              ]}
+            />
+
+            {!pickMode && (
+              <div style={{ marginTop: 16, textAlign: 'right', fontWeight: 'bold' }}>
+                Итого: {viewOrder.total.toFixed(2)} ₽
+              </div>
+            )}
+          </>
+        )}
+      </Drawer>
     </div>
   );
 }

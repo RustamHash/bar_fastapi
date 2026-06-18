@@ -35,6 +35,7 @@ class ProductCreate(BaseModel):
     ibu: int | None = None
     is_kit: bool = False
     kit_price_type: str | None = "manual"
+    barcode: str | None = None
     components: list[KitComponentCreate] = Field(default_factory=list)
 
 
@@ -49,6 +50,7 @@ class ProductUpdate(BaseModel):
     is_kit: bool | None = None
     kit_price_type: str | None = None
     is_active: bool | None = None
+    barcode: str | None = None
     components: list[KitComponentCreate] | None = None
 
 
@@ -65,6 +67,7 @@ class ProductResponse(BaseModel):
     is_kit: bool
     kit_price_type: str | None
     is_active: bool
+    barcode: str | None = None
     created_at: datetime
     updated_at: datetime
     components: list[KitComponentResponse] = Field(default_factory=list)
