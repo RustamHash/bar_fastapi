@@ -112,22 +112,28 @@ export default function Invoices() {
     { title: 'Комментарий', dataIndex: 'comment', ellipsis: true },
     {
       title: '',
-      width: 100,
+      width: 90,
+      fixed: 'right',
       render: (_, record) => (
         <Button
           size="small"
           icon={<EyeOutlined />}
           onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${record.id}`); }}
-        >
-          Открыть
-        </Button>
+        />
       ),
     },
   ];
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 16,
+      }}>
         <Title level={3} style={{ margin: 0 }}>Накладные</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
           Новая накладная
@@ -139,6 +145,7 @@ export default function Invoices() {
         columns={columns}
         rowKey="id"
         loading={loading}
+        scroll={{ x: 800 }}
         onRow={(record) => ({
           onClick: () => navigate(`/invoices/${record.id}`),
           style: { cursor: 'pointer' },
@@ -153,34 +160,44 @@ export default function Invoices() {
         confirmLoading={creating}
         width={700}
         okText="Создать"
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <div>
-            <span style={{ marginRight: 8 }}>Поставщик:</span>
-            <Input value={supplier} onChange={(e) => setSupplier(e.target.value)} style={{ width: 300 }} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+            <span>Поставщик:</span>
+            <Input value={supplier} onChange={(e) => setSupplier(e.target.value)} style={{ flex: '1 1 200px', maxWidth: 300 }} />
           </div>
-          <div>
-            <span style={{ marginRight: 8 }}>Номер накладной:</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+            <span>Номер накладной:</span>
             <Input
               value={invoiceNumber}
               onChange={(e) => setInvoiceNumber(e.target.value)}
-              style={{ width: 200 }}
+              style={{ flex: '1 1 160px', maxWidth: 200 }}
               placeholder="Номер от поставщика"
             />
           </div>
-          <div>
-            <span style={{ marginRight: 8 }}>Дата:</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+            <span>Дата:</span>
             <DatePicker value={date} onChange={setDate} format="DD.MM.YYYY" />
           </div>
-          <div>
-            <span style={{ marginRight: 8 }}>Комментарий:</span>
-            <Input value={comment} onChange={(e) => setComment(e.target.value)} style={{ width: 400 }} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+            <span>Комментарий:</span>
+            <Input value={comment} onChange={(e) => setComment(e.target.value)} style={{ flex: '1 1 200px', maxWidth: 400 }} />
           </div>
           {items.map((item) => (
-            <Space key={item.key}>
+            <div
+              key={item.key}
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 8,
+                alignItems: 'center',
+                width: '100%',
+              }}
+            >
               <Select
                 showSearch
-                style={{ width: 250 }}
+                style={{ flex: '1 1 200px', minWidth: 180, maxWidth: 280 }}
                 placeholder="Товар"
                 filterOption={caseInsensitiveFilterOption}
                 value={item.product_id}
@@ -192,6 +209,7 @@ export default function Invoices() {
                 placeholder="Кол-во"
                 value={item.quantity}
                 onChange={(v) => updateItem(item.key, 'quantity', v)}
+                style={{ width: 90 }}
               />
               <InputNumber
                 min={0}
@@ -199,10 +217,13 @@ export default function Invoices() {
                 value={item.purchase_price}
                 onChange={(v) => updateItem(item.key, 'purchase_price', v)}
                 addonAfter="₽"
+                style={{ width: 120 }}
               />
-              <span>= {((item.quantity || 0) * (item.purchase_price || 0)).toFixed(2)} ₽</span>
+              <span style={{ whiteSpace: 'nowrap' }}>
+                = {((item.quantity || 0) * (item.purchase_price || 0)).toFixed(2)} ₽
+              </span>
               <Button type="text" danger icon={<DeleteOutlined />} onClick={() => removeItem(item.key)} />
-            </Space>
+            </div>
           ))}
           <Button type="dashed" icon={<PlusOutlined />} onClick={addItem}>
             Добавить позицию

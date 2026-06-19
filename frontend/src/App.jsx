@@ -9,6 +9,8 @@ import Products from './pages/Products';
 import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import Invoices from './pages/Invoices';
+import InvoiceDetail from './pages/InvoiceDetail';
+import Stock from './pages/Stock';
 import CashRegister from './pages/CashRegister';
 import Reports from './pages/Reports';
 import Receiving from './pages/Receiving';
@@ -68,6 +70,8 @@ export default function App() {
           <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="products" element={<Products />} />
           <Route path="invoices" element={<Invoices />} />
+          <Route path="invoices/:id" element={<InvoiceDetail />} />
+          <Route path="stock" element={<Stock />} />
           <Route path="receiving" element={<Receiving />} />
           <Route path="cash" element={<CashRegister />} />
           <Route path="reports" element={<Reports />} />

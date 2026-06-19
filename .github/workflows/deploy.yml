@@ -30,8 +30,15 @@ jobs:
             git reset --hard origin/main
             git clean -fd -e .env -e docker-compose.override.yml
 
+            echo "=== Disk space ==="
+            df -h / /var/lib/docker 2>/dev/null || df -h /
+
+            echo "=== Docker cleanup ==="
+            docker builder prune -f --filter "until=24h" || true
+            docker image prune -f || true
+
             echo "=== Docker build ==="
-            docker compose -f docker-compose.yml build --no-cache
+            docker compose -f docker-compose.yml build
 
             echo "=== Docker up ==="
             docker compose -f docker-compose.yml up -d --force-recreate

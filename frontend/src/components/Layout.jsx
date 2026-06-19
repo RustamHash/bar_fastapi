@@ -10,6 +10,7 @@ import {
   LogoutOutlined,
   InboxOutlined,
   TableOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = AntLayout;
@@ -25,6 +26,7 @@ const menuItems = [
   { key: '/dashboard', icon: <DashboardOutlined />, label: 'Дашборд' },
   { key: '/orders', icon: <ShoppingCartOutlined />, label: 'Заказы' },
   { key: '/products', icon: <AppstoreOutlined />, label: 'Товары' },
+  { key: '/stock', icon: <DatabaseOutlined />, label: 'Остатки' },
   { key: '/invoices', icon: <FileTextOutlined />, label: 'Накладные' },
   { key: '/receiving', icon: <InboxOutlined />, label: 'Приёмка' },
   { key: '/cash', icon: <DollarOutlined />, label: 'Касса' },

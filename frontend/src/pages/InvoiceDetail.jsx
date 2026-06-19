@@ -109,7 +109,14 @@ export default function InvoiceDetail() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 16,
+      }}>
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/invoices')}>
             К списку
@@ -172,10 +179,19 @@ export default function InvoiceDetail() {
           <Title level={5} style={{ marginTop: 8, marginBottom: 0 }}>Позиции</Title>
 
           {items.map((item) => (
-            <Space key={item.key} wrap>
+            <div
+              key={item.key}
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 8,
+                alignItems: 'center',
+                width: '100%',
+              }}
+            >
               <Select
                 showSearch
-                style={{ width: 280 }}
+                style={{ flex: '1 1 200px', minWidth: 180, maxWidth: 280 }}
                 placeholder="Товар"
                 filterOption={caseInsensitiveFilterOption}
                 value={item.product_id}
@@ -187,6 +203,7 @@ export default function InvoiceDetail() {
                 placeholder="Кол-во"
                 value={item.quantity}
                 onChange={(v) => updateItem(item.key, 'quantity', v)}
+                style={{ width: 90 }}
               />
               <InputNumber
                 min={0}
@@ -194,8 +211,9 @@ export default function InvoiceDetail() {
                 value={item.purchase_price}
                 onChange={(v) => updateItem(item.key, 'purchase_price', v)}
                 addonAfter="₽"
+                style={{ width: 120 }}
               />
-              <span style={{ minWidth: 100 }}>
+              <span style={{ minWidth: 80, whiteSpace: 'nowrap' }}>
                 = {((item.quantity || 0) * (item.purchase_price || 0)).toFixed(2)} ₽
               </span>
               <Button
@@ -205,7 +223,7 @@ export default function InvoiceDetail() {
                 onClick={() => removeItem(item.key)}
                 disabled={items.length <= 1}
               />
-            </Space>
+            </div>
           ))}
 
           <Button type="dashed" icon={<PlusOutlined />} onClick={addItem}>
