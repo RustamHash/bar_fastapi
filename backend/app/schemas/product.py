@@ -44,8 +44,6 @@ class ProductCreate(BaseModel):
     unit: str
     retail_price: float = 0.0
     min_stock: float = 0.0
-    abv: float | None = None
-    ibu: int | None = None
     is_kit: bool = False
     kit_price_type: str | None = "manual"
     sellable: bool = True
@@ -58,8 +56,6 @@ class ProductUpdate(BaseModel):
     unit: str | None = None
     retail_price: float | None = None
     min_stock: float | None = None
-    abv: float | None = None
-    ibu: int | None = None
     is_kit: bool | None = None
     kit_price_type: str | None = None
     is_active: bool | None = None
@@ -75,8 +71,6 @@ class ProductResponse(BaseModel):
     retail_price: float
     stock: float
     min_stock: float
-    abv: float | None
-    ibu: int | None
     is_kit: bool
     kit_price_type: str | None
     is_active: bool

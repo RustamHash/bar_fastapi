@@ -33,9 +33,9 @@ def seed_database(db: Session) -> None:
         return
 
     products_data = [
-        {"name": "Жигулевское (литр)", "category": "beer", "unit": "liter", "retail_price": 400, "min_stock": 10, "abv": 4.5, "sellable": False},
-        {"name": "Чешское (литр)", "category": "beer", "unit": "liter", "retail_price": 500, "min_stock": 10, "abv": 4.8, "sellable": False},
-        {"name": "IPA (литр)", "category": "beer", "unit": "liter", "retail_price": 700, "min_stock": 5, "abv": 6.5, "sellable": False},
+        {"name": "Жигулевское (литр)", "category": "beer", "unit": "liter", "retail_price": 400, "min_stock": 10, "sellable": False},
+        {"name": "Чешское (литр)", "category": "beer", "unit": "liter", "retail_price": 500, "min_stock": 10, "sellable": False},
+        {"name": "IPA (литр)", "category": "beer", "unit": "liter", "retail_price": 700, "min_stock": 5, "sellable": False},
         {"name": "Бутылка ПЭТ 1.5л", "category": "packaging", "unit": "piece", "retail_price": 50, "min_stock": 20, "sellable": False},
         {"name": "Крышка", "category": "packaging", "unit": "piece", "retail_price": 5, "min_stock": 50, "sellable": False},
         {"name": "Бокал пластиковый", "category": "packaging", "unit": "piece", "retail_price": 30, "min_stock": 30, "sellable": False},

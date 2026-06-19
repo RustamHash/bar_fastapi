@@ -46,8 +46,6 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
         unit: product.unit,
         retail_price: product.retail_price,
         min_stock: product.min_stock,
-        abv: product.abv,
-        ibu: product.ibu,
         is_kit: product.is_kit,
         kit_price_type: product.kit_price_type || 'manual',
         sellable: product.sellable ?? true,
@@ -379,20 +377,6 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
               </Typography.Text>
             </>
           )}
-          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.category !== cur.category}>
-            {({ getFieldValue }) =>
-              getFieldValue('category') === 'beer' ? (
-                <>
-                  <Form.Item name="abv" label="ABV (%)">
-                    <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} />
-                  </Form.Item>
-                  <Form.Item name="ibu" label="IBU">
-                    <InputNumber min={0} style={{ width: '100%' }} />
-                  </Form.Item>
-                </>
-              ) : null
-            }
-          </Form.Item>
           <Form.Item label="Это комплект">
             <Switch checked={isKit} onChange={setIsKit} />
           </Form.Item>

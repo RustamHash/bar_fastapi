@@ -23,6 +23,9 @@ def run_migrations(engine: Engine) -> None:
                         "UPDATE products SET sellable = 0 "
                         "WHERE is_kit = 0 AND category IN ('beer', 'packaging')"
                     ))
+            for col in ("abv", "ibu"):
+                if col in cols:
+                    conn.execute(text(f"ALTER TABLE products DROP COLUMN {col}"))
 
         if "orders" in existing_tables:
             cols = {c["name"] for c in inspector.get_columns("orders")}

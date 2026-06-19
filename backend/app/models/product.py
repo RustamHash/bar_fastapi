@@ -15,8 +15,6 @@ class Product(Base):
     unit: Mapped[str] = mapped_column(String(20), nullable=False)
     retail_price: Mapped[float] = mapped_column(Float, default=0.0)
     min_stock: Mapped[float] = mapped_column(Float, default=0.0)
-    abv: Mapped[float | None] = mapped_column(Float, nullable=True)
-    ibu: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_kit: Mapped[bool] = mapped_column(Boolean, default=False)
     kit_price_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
