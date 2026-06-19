@@ -44,18 +44,25 @@ def run_migrations(engine: Engine) -> None:
                     "ALTER TABLE order_items ADD COLUMN scanned_quantity FLOAT DEFAULT 0"
                 ))
 
-        if "bar_tables" in existing_tables and "tables" not in existing_tables:
+        had_bar_tables = "bar_tables" in existing_tables
+        had_tables = "tables" in existing_tables
+        if had_bar_tables and not had_tables:
             conn.execute(text("ALTER TABLE bar_tables RENAME TO tables"))
 
-        if "tables" in existing_tables:
+        if had_tables or had_bar_tables:
             table_cols = {c["name"] for c in inspector.get_columns("tables")}
             for col in ("label", "width", "height", "capacity", "section", "is_reserved"):
                 if col in table_cols:
                     conn.execute(text(f"ALTER TABLE tables DROP COLUMN {col}"))
-            conn.execute(text(
-                "ALTER TABLE tables ALTER COLUMN number TYPE VARCHAR(50) "
-                "USING number::text"
-            ))
+            number_col = next(
+                (c for c in inspector.get_columns("tables") if c["name"] == "number"),
+                None,
+            )
+            if number_col and "INT" in str(number_col.get("type", "")).upper():
+                conn.execute(text(
+                    "ALTER TABLE tables ALTER COLUMN number TYPE VARCHAR(50) "
+                    "USING number::text"
+                ))
 
         if "orders" in existing_tables:
             order_cols = {c["name"] for c in inspector.get_columns("orders")}
