@@ -13,19 +13,33 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 USERS = {
-    "amir": {"username": "amir", "password": "123", "role": "admin"},
-    "adam": {"username": "adam", "password": "123", "role": "admin"},
+    "amir": {
+        "username": "amir",
+        "password": "123",
+        "role": "admin",
+        "display_name": "Амир Русланович",
+    },
+    "adam": {
+        "username": "adam",
+        "password": "123",
+        "role": "admin",
+        "display_name": "Адам Аскерович",
+    },
 }
 
 
 class Token(BaseModel):
     access_token: str
     token_type: str
+    username: str
+    display_name: str
+    role: str
 
 
 class User(BaseModel):
     username: str
     role: str
+    display_name: str
 
 
 def create_access_token(data: dict) -> str:
@@ -58,7 +72,11 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
     user = USERS.get(username)
     if user is None:
         raise credentials_exception
-    return User(username=user["username"], role=user["role"])
+    return User(
+        username=user["username"],
+        role=user["role"],
+        display_name=user["display_name"],
+    )
 
 
 @router.post("/login", response_model=Token)
@@ -70,7 +88,13 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             detail="Неверный логин или пароль",
         )
     token = create_access_token(data={"sub": user["username"]})
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "username": user["username"],
+        "display_name": user["display_name"],
+        "role": user["role"],
+    }
 
 
 @router.post("/login-json", response_model=Token)
@@ -84,4 +108,10 @@ async def login_json(body: dict):
             detail="Неверный логин или пароль",
         )
     token = create_access_token(data={"sub": user["username"]})
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "username": user["username"],
+        "display_name": user["display_name"],
+        "role": user["role"],
+    }

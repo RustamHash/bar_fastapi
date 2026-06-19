@@ -17,6 +17,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -24,8 +25,14 @@ api.interceptors.response.use(
 );
 
 export const authApi = {
-  login: (username, password) =>
-    api.post('/auth/login-json', { username, password }),
+  login: (username, password) => {
+    const params = new URLSearchParams();
+    params.append('username', username);
+    params.append('password', password);
+    return api.post('/auth/login', params, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+  },
 };
 
 export const productsApi = {

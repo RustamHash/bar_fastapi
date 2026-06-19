@@ -24,13 +24,24 @@ const menuItems = [
   { key: '/reports', icon: <BarChartOutlined />, label: 'Отчёты' },
 ];
 
+function getCurrentUser() {
+  try {
+    const raw = localStorage.getItem('user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { token: { colorBgContainer } } = theme.useToken();
+  const currentUser = getCurrentUser();
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     navigate('/login');
   };
 
@@ -65,7 +76,13 @@ export default function Layout() {
           display: 'flex',
           justifyContent: 'flex-end',
           alignItems: 'center',
+          gap: 16,
         }}>
+          {currentUser?.display_name && (
+            <span style={{ color: 'rgba(0, 0, 0, 0.65)' }}>
+              {currentUser.display_name}
+            </span>
+          )}
           <Button icon={<LogoutOutlined />} onClick={handleLogout}>
             Выход
           </Button>

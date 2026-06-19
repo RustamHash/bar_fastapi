@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, Typography, message } from 'antd';
+import { Form, Input, Button, Card, Typography, message, Select } from 'antd';
 import { CoffeeOutlined } from '@ant-design/icons';
 import { authApi } from '../api';
 
@@ -15,7 +15,12 @@ export default function Login() {
     try {
       const res = await authApi.login(values.username, values.password);
       localStorage.setItem('token', res.data.access_token);
-      message.success('Добро пожаловать!');
+      localStorage.setItem('user', JSON.stringify({
+        username: res.data.username,
+        display_name: res.data.display_name,
+        role: res.data.role,
+      }));
+      message.success(`Добро пожаловать, ${res.data.display_name}!`);
       navigate('/');
     } catch {
       message.error('Неверный логин или пароль');
@@ -39,14 +44,14 @@ export default function Login() {
           <Typography.Text type="secondary">Система управления баром</Typography.Text>
         </div>
         <Form layout="vertical" onFinish={onFinish}>
-        <Form.Item name="username" label="Пользователь" rules={[{ required: true }]}>
-          <Select placeholder="Выберите пользователя">
-            <Select.Option value="amir">👑 Амир Русланович</Select.Option>
-            <Select.Option value="adam">🍺 Адам Аскерович</Select.Option>
-          </Select>
-        </Form.Item>
+          <Form.Item name="username" label="Пользователь" rules={[{ required: true }]}>
+            <Select placeholder="Выберите пользователя" size="large">
+              <Select.Option value="amir">Амир Русланович</Select.Option>
+              <Select.Option value="adam">Адам Аскерович</Select.Option>
+            </Select>
+          </Form.Item>
           <Form.Item name="password" label="Пароль" rules={[{ required: true, message: 'Введите пароль' }]}>
-            <Input.Password size="large" placeholder="beer123" />
+            <Input.Password size="large" placeholder="123" />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading} block size="large">
