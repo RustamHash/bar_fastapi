@@ -14,7 +14,13 @@ from app.schemas.order import (
     OrderItemAdd, OrderItemQuantityUpdate, OrderCancelRequest,
 )
 from app.services.batch_service import deduct_from_batches, return_to_batches
-from app.services.kit_service import calculate_kit_price, expand_kit_components, load_product_with_components
+from app.services.kit_service import (
+    calculate_kit_price,
+    expand_kit_components,
+    load_product_with_components,
+    get_component_unit_price,
+    sync_kit_component_pricing,
+)
 from app.services.barcode_service import normalize_barcode, find_product_by_barcode
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
@@ -39,6 +45,9 @@ def get_open_cash_session(db: Session, *, for_payment: bool = False) -> CashSess
 def build_order_item_response(item: OrderItem, db: Session) -> OrderItemResponse:
     kit_name = None
     show_in_order = True
+    kit_component_qty = None
+    kit_order_quantity = None
+    unit_price = None
     if item.kit_id:
         kit = db.query(Product).filter(Product.id == item.kit_id).first()
         kit_name = kit.name if kit else None
@@ -53,6 +62,12 @@ def build_order_item_response(item: OrderItem, db: Session) -> OrderItemResponse
             )
             if kc:
                 show_in_order = kc.show_in_order
+                kit_component_qty = kc.quantity
+                unit_price = get_component_unit_price(kc, item.product)
+            if item.parent_kit_item_id:
+                parent = db.query(OrderItem).filter(OrderItem.id == item.parent_kit_item_id).first()
+                if parent:
+                    kit_order_quantity = parent.quantity
 
     return OrderItemResponse(
         id=item.id,
@@ -70,6 +85,9 @@ def build_order_item_response(item: OrderItem, db: Session) -> OrderItemResponse
         show_in_order=show_in_order,
         unit=item.product.unit,
         scanned_quantity=item.scanned_quantity,
+        kit_component_qty=kit_component_qty,
+        kit_order_quantity=kit_order_quantity,
+        unit_price=unit_price,
     )
 
 
@@ -132,8 +150,8 @@ def process_order_item(
                 order_id=order.id,
                 product_id=comp.id,
                 quantity=comp_qty,
-                price=0.0,
-                total=0.0,
+                price=exp["price_per_kit"],
+                total=exp["line_total"],
                 cost_price=0.0,
                 is_kit_component=True,
                 parent_kit_item_id=main_item.id,
@@ -222,13 +240,14 @@ def adjust_kit_order_item_quantity(
                 comp_cost = deduct_from_batches(db, comp.id, comp_qty, child)
                 child.quantity += comp_qty
                 child.cost_price += comp_cost
+                sync_kit_component_pricing(child, kc, comp)
             else:
                 child = OrderItem(
                     order_id=order.id,
                     product_id=comp.id,
                     quantity=comp_qty,
-                    price=0.0,
-                    total=0.0,
+                    price=exp["price_per_kit"],
+                    total=exp["line_total"],
                     cost_price=0.0,
                     is_kit_component=True,
                     parent_kit_item_id=main_item.id,
@@ -245,7 +264,9 @@ def adjust_kit_order_item_quantity(
         expanded = expand_kit_components(db, kit, diff)
         for exp in expanded:
             comp_qty = exp["quantity"]
-            child = get_kit_child_item(order, main_item.id, exp["component"].id)
+            kc = exp["kit_component"]
+            comp = exp["component"]
+            child = get_kit_child_item(order, main_item.id, comp.id)
             if not child:
                 continue
             cost_returned = return_quantity_from_item(db, child, comp_qty)
@@ -253,6 +274,8 @@ def adjust_kit_order_item_quantity(
             child.cost_price = max(0, child.cost_price - cost_returned)
             if child.quantity <= 0:
                 db.delete(child)
+            else:
+                sync_kit_component_pricing(child, kc, comp)
             main_item.cost_price = max(0, main_item.cost_price - cost_returned)
 
     main_item.quantity = new_quantity

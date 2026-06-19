@@ -39,6 +39,9 @@ class OrderItemResponse(BaseModel):
     show_in_order: bool = True
     unit: str
     scanned_quantity: float = 0.0
+    kit_component_qty: float | None = None
+    kit_order_quantity: float | None = None
+    unit_price: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -76,6 +79,10 @@ class OrderListResponse(BaseModel):
     paid_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class OrderCancelRequest(BaseModel):
+    comment: str = Field(min_length=1)
 
 
 class OrderScanRequest(BaseModel):

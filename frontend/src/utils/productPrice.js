@@ -24,6 +24,29 @@ export function formatProductPrice(product) {
   return `${price} ₽/${unit}`;
 }
 
+export function formatOrderItemLine(item) {
+  if (item.is_kit_component && item.kit_component_qty != null && item.unit_price != null) {
+    const unit = productUnitLabel(item.unit);
+    const kits = item.kit_order_quantity ?? 1;
+    const qtyLabel = item.unit === 'liter'
+      ? `${item.kit_component_qty}л`
+      : `${item.kit_component_qty} ${unit}`;
+    return `${item.product_name} ${qtyLabel} × ${kits} = ${item.price}₽ × ${kits} = ${item.total}₽`;
+  }
+  return item.product_name;
+}
+
+export function formatOrderItemPrice(item) {
+  if (item.is_kit_component && item.kit_component_qty != null) {
+    return `${item.price} ₽`;
+  }
+  return `${item.price} ₽`;
+}
+
+export function formatOrderItemTotal(item) {
+  return `${item.total} ₽`;
+}
+
 export function formatComponentUnitPrice(component) {
   const unitPrice = component.price_override ?? component.component_price;
   const unit = productUnitLabel(component.component_unit);

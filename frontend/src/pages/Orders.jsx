@@ -10,7 +10,7 @@ import {
 import dayjs from 'dayjs';
 import { ordersApi, productsApi, receiptApi } from '../api';
 import { caseInsensitiveFilterOption } from '../utils/selectFilter';
-import { getProductSalePrice } from '../utils/productPrice';
+import { getProductSalePrice, formatOrderItemLine, formatOrderItemPrice, formatOrderItemTotal } from '../utils/productPrice';
 import ReceiptModal from '../components/ReceiptModal';
 import OrderModal from '../components/OrderModal';
 import { BarcodeInput } from '../components/BarcodeInput';
@@ -409,10 +409,30 @@ export default function Orders() {
                   },
                 },
               ] : [
-                { title: 'Товар', dataIndex: 'product_name' },
-                { title: 'Кол-во', dataIndex: 'quantity' },
-                { title: 'Цена', dataIndex: 'price', render: (v) => `${v} ₽` },
-                { title: 'Сумма', dataIndex: 'total', render: (v) => `${v} ₽` },
+                {
+                  title: 'Товар',
+                  dataIndex: 'product_name',
+                  render: (_, item) => formatOrderItemLine(item),
+                },
+                {
+                  title: 'Кол-во',
+                  dataIndex: 'quantity',
+                  render: (v, item) => (
+                    item.is_kit_component && item.kit_component_qty != null
+                      ? `${item.kit_component_qty} × ${item.kit_order_quantity ?? 1}`
+                      : v
+                  ),
+                },
+                {
+                  title: 'Цена',
+                  dataIndex: 'price',
+                  render: (_, item) => formatOrderItemPrice(item),
+                },
+                {
+                  title: 'Сумма',
+                  dataIndex: 'total',
+                  render: (_, item) => formatOrderItemTotal(item),
+                },
               ]}
             />
 
