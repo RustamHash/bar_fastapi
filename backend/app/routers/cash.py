@@ -102,7 +102,7 @@ def close_cash(
 
     open_orders = (
         db.query(Order)
-        .filter(Order.cash_session_id == session.id, Order.status == "open")
+        .filter(Order.status == "open")
         .count()
     )
     if open_orders > 0:

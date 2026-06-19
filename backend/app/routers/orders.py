@@ -20,14 +20,19 @@ from app.services.barcode_service import normalize_barcode, find_product_by_barc
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
 
-def get_open_cash_session(db: Session) -> CashSession:
+def get_open_cash_session(db: Session, *, for_payment: bool = False) -> CashSession:
     session = (
         db.query(CashSession)
         .filter(CashSession.status == "open")
         .first()
     )
     if not session:
-        raise HTTPException(status_code=400, detail="Касса не открыта. Откройте смену.")
+        detail = (
+            "Откройте кассовую смену для оплаты"
+            if for_payment
+            else "Касса не открыта. Откройте смену."
+        )
+        raise HTTPException(status_code=400, detail=detail)
     return session
 
 
@@ -366,8 +371,6 @@ def create_order(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    cash_session = get_open_cash_session(db)
-
     if data.items:
         for item_data in data.items:
             product = db.query(Product).filter(Product.id == item_data.product_id).first()
@@ -381,7 +384,6 @@ def create_order(
     order = Order(
         table_num=data.table_num.strip(),
         status="open",
-        cash_session_id=cash_session.id,
         comment=data.comment,
     )
     db.add(order)
@@ -582,14 +584,13 @@ def pay_order(
     if order.status != "open":
         raise HTTPException(status_code=400, detail="Заказ уже оплачен или отменён")
 
+    cash_session = get_open_cash_session(db, for_payment=True)
+
     order.status = "paid"
     order.paid_at = datetime.utcnow()
-
-    if order.cash_session_id:
-        session = db.query(CashSession).filter(CashSession.id == order.cash_session_id).first()
-        if session:
-            session.total_revenue += order.total
-            session.cash_total += order.total
+    order.cash_session_id = cash_session.id
+    cash_session.total_revenue += order.total
+    cash_session.cash_total += order.total
 
     db.commit()
     return build_order_response(order, db)

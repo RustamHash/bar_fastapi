@@ -37,6 +37,7 @@ export default function CashRegister() {
     try {
       const res = await cashApi.open(openBalance);
       setStatus(res.data);
+      await fetchStatus();
       message.success('Смена открыта');
     } catch (err) {
       message.error(err.response?.data?.detail || 'Ошибка');

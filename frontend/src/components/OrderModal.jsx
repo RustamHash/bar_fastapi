@@ -6,6 +6,8 @@ import {
   PlusOutlined, MinusOutlined, CheckOutlined, PrinterOutlined, SearchOutlined,
 } from '@ant-design/icons';
 import { ordersApi, productsApi, receiptApi } from '../api';
+import { payOrderWithCashCheck } from '../utils/payOrder';
+import OpenCashGateModal from './OpenCashGateModal';
 import ReceiptModal from './ReceiptModal';
 
 const { Title, Text } = Typography;
@@ -25,6 +27,7 @@ export default function OrderModal({
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
+  const [cashGateOpen, setCashGateOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -93,13 +96,23 @@ export default function OrderModal({
 
   const handlePay = async () => {
     try {
-      await ordersApi.pay(currentOrder.id);
+      const result = await payOrderWithCashCheck(currentOrder.id);
+      if (result.needsCash) {
+        setCashGateOpen(true);
+        return;
+      }
       message.success('Заказ оплачен');
       onClose();
       onUpdated?.();
     } catch (err) {
       message.error(err.response?.data?.detail || 'Ошибка оплаты');
     }
+  };
+
+  const handleCashGateSuccess = () => {
+    setCashGateOpen(false);
+    onClose();
+    onUpdated?.();
   };
 
   const handlePrint = async () => {
@@ -239,6 +252,13 @@ export default function OrderModal({
         receipt={receipt}
         loading={receiptLoading}
         onClose={() => { setReceiptOpen(false); setReceipt(null); }}
+      />
+
+      <OpenCashGateModal
+        open={cashGateOpen}
+        orderId={currentOrder?.id}
+        onSuccess={handleCashGateSuccess}
+        onCancel={() => setCashGateOpen(false)}
       />
     </>
   );

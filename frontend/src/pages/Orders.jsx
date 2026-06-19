@@ -9,8 +9,10 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ordersApi, productsApi, receiptApi } from '../api';
+import { payOrderWithCashCheck } from '../utils/payOrder';
 import { caseInsensitiveFilterOption } from '../utils/selectFilter';
 import ReceiptModal from '../components/ReceiptModal';
+import OpenCashGateModal from '../components/OpenCashGateModal';
 import { BarcodeInput } from '../components/BarcodeInput';
 import { playSound } from '../utils/sounds';
 
@@ -38,6 +40,8 @@ export default function Orders() {
   const [viewLoading, setViewLoading] = useState(false);
   const [pickMode, setPickMode] = useState(false);
   const [scanStatus, setScanStatus] = useState(null);
+  const [cashGateOpen, setCashGateOpen] = useState(false);
+  const [payOrderId, setPayOrderId] = useState(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -101,7 +105,12 @@ export default function Orders() {
 
   const handlePay = async (id) => {
     try {
-      await ordersApi.pay(id);
+      const result = await payOrderWithCashCheck(id);
+      if (result.needsCash) {
+        setPayOrderId(id);
+        setCashGateOpen(true);
+        return;
+      }
       message.success('Заказ оплачен');
       fetchOrders();
     } catch (err) {
@@ -391,6 +400,20 @@ export default function Orders() {
           </>
         )}
       </Drawer>
+
+      <OpenCashGateModal
+        open={cashGateOpen}
+        orderId={payOrderId}
+        onSuccess={() => {
+          setCashGateOpen(false);
+          setPayOrderId(null);
+          fetchOrders();
+        }}
+        onCancel={() => {
+          setCashGateOpen(false);
+          setPayOrderId(null);
+        }}
+      />
     </div>
   );
 }

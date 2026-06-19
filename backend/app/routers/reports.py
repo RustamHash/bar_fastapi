@@ -18,6 +18,7 @@ def sales_report(
     _: User = Depends(get_current_user),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
+    cash_session_id: int | None = Query(None),
 ):
     if not start_date:
         start_date = date.today() - timedelta(days=30)
@@ -33,12 +34,15 @@ def sales_report(
         .options(joinedload(OrderItem.product))
         .filter(
             Order.status == "paid",
+            Order.paid_at.isnot(None),
             Order.paid_at >= start_dt,
             Order.paid_at <= end_dt,
             OrderItem.is_kit_component == False,  # noqa: E712
         )
-        .all()
     )
+    if cash_session_id is not None:
+        items = items.filter(Order.cash_session_id == cash_session_id)
+    items = items.all()
 
     product_stats: dict[int, dict] = {}
     for item in items:
@@ -78,7 +82,7 @@ def top_products(
 ):
     start_dt = datetime.utcnow() - timedelta(days=days)
 
-    rows = (
+    query = (
         db.query(
             Product.id,
             Product.name,
@@ -89,9 +93,13 @@ def top_products(
         .join(Order, Order.id == OrderItem.order_id)
         .filter(
             Order.status == "paid",
+            Order.paid_at.isnot(None),
             Order.paid_at >= start_dt,
             OrderItem.is_kit_component == False,  # noqa: E712
         )
+    )
+    rows = (
+        query
         .group_by(Product.id, Product.name)
         .order_by(func.sum(OrderItem.quantity).desc())
         .limit(limit)
@@ -123,7 +131,11 @@ def revenue_by_day(
             func.sum(Order.total).label("revenue"),
             func.count(Order.id).label("orders_count"),
         )
-        .filter(Order.status == "paid", Order.paid_at >= start_dt)
+        .filter(
+            Order.status == "paid",
+            Order.paid_at.isnot(None),
+            Order.paid_at >= start_dt,
+        )
         .group_by(cast(Order.paid_at, Date))
         .order_by(cast(Order.paid_at, Date))
         .all()
@@ -148,7 +160,7 @@ def dashboard_stats(
 
     today_revenue = (
         db.query(func.coalesce(func.sum(Order.total), 0))
-        .filter(Order.status == "paid", Order.paid_at >= today_start)
+        .filter(Order.status == "paid", Order.paid_at.isnot(None), Order.paid_at >= today_start)
         .scalar()
     )
 
