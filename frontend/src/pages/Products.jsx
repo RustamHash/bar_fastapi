@@ -118,7 +118,7 @@ export default function Products() {
     },
     {
       title: 'Штрихкод',
-      dataIndex: 'barcode',
+      dataIndex: 'primary_barcode',
       render: (v) => v || '—',
     },
     {

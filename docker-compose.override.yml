@@ -1,28 +1,10 @@
-# Локальная разработка: PostgreSQL в Docker-контейнере.
+# Локальная разработка: hot reload бэкенда, SQLite в ./backend/beerpub.db
 # Файл не используется на сервере (деплой через git pull, override остаётся только локально).
 services:
-  db:
-    image: postgres:15-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   backend:
-    depends_on:
-      db:
-        condition: service_healthy
     volumes:
       - ./backend:/app
+      - beerpub_data:/app/data
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///./beerpub.db}
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
-volumes:
-  postgres_data:

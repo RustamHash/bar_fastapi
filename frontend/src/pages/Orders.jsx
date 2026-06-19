@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ordersApi, productsApi, receiptApi } from '../api';
+import { caseInsensitiveFilterOption } from '../utils/selectFilter';
 import ReceiptModal from '../components/ReceiptModal';
 import { BarcodeInput } from '../components/BarcodeInput';
 import { playSound } from '../utils/sounds';
@@ -296,7 +297,7 @@ export default function Orders() {
               showSearch
               style={{ width: 280 }}
               placeholder="Выберите товар"
-              optionFilterProp="label"
+              filterOption={caseInsensitiveFilterOption}
               value={item.product_id}
               onChange={(v) => updateItem(item.key, 'product_id', v)}
               options={products.map((p) => ({

@@ -2,7 +2,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from app.models.product import Product, KitComponent, ProductBatch
+from app.models.product import Product, KitComponent, ProductBatch, ProductBarcode
 from app.models.invoice import Invoice, InvoiceItem
 from app.models.table import BarTable
 
@@ -33,15 +33,26 @@ def seed_database(db: Session) -> None:
         return
 
     products_data = [
-        {"name": "Жигулевское (литр)", "category": "beer", "unit": "liter", "retail_price": 400, "min_stock": 10, "abv": 4.5, "barcode": "4601234567010", "show_in_search": False},
-        {"name": "Чешское (литр)", "category": "beer", "unit": "liter", "retail_price": 500, "min_stock": 10, "abv": 4.8, "barcode": "4601234567027", "show_in_search": False},
-        {"name": "IPA (литр)", "category": "beer", "unit": "liter", "retail_price": 700, "min_stock": 5, "abv": 6.5, "barcode": "4601234567034", "show_in_search": False},
-        {"name": "Бутылка ПЭТ 1.5л", "category": "packaging", "unit": "piece", "retail_price": 50, "min_stock": 20, "barcode": "4601234567041", "show_in_search": False},
-        {"name": "Крышка", "category": "packaging", "unit": "piece", "retail_price": 5, "min_stock": 50, "barcode": "4601234567058", "show_in_search": False},
-        {"name": "Бокал пластиковый", "category": "packaging", "unit": "piece", "retail_price": 30, "min_stock": 30, "barcode": "4601234567065", "show_in_search": False},
-        {"name": "Гренки чесночные", "category": "snack", "unit": "piece", "retail_price": 150, "min_stock": 5, "barcode": "4601234567072", "show_in_search": True},
-        {"name": "Кальмар сушёный", "category": "snack", "unit": "kg", "retail_price": 800, "min_stock": 2, "barcode": "4601234567089", "show_in_search": True},
+        {"name": "Жигулевское (литр)", "category": "beer", "unit": "liter", "retail_price": 400, "min_stock": 10, "abv": 4.5, "show_in_search": False},
+        {"name": "Чешское (литр)", "category": "beer", "unit": "liter", "retail_price": 500, "min_stock": 10, "abv": 4.8, "show_in_search": False},
+        {"name": "IPA (литр)", "category": "beer", "unit": "liter", "retail_price": 700, "min_stock": 5, "abv": 6.5, "show_in_search": False},
+        {"name": "Бутылка ПЭТ 1.5л", "category": "packaging", "unit": "piece", "retail_price": 50, "min_stock": 20, "show_in_search": False},
+        {"name": "Крышка", "category": "packaging", "unit": "piece", "retail_price": 5, "min_stock": 50, "show_in_search": False},
+        {"name": "Бокал пластиковый", "category": "packaging", "unit": "piece", "retail_price": 30, "min_stock": 30, "show_in_search": False},
+        {"name": "Гренки чесночные", "category": "snack", "unit": "piece", "retail_price": 150, "min_stock": 5, "show_in_search": True},
+        {"name": "Кальмар сушёный", "category": "snack", "unit": "kg", "retail_price": 800, "min_stock": 2, "show_in_search": True},
     ]
+
+    product_barcodes = {
+        "Жигулевское (литр)": "4601234567010",
+        "Чешское (литр)": "4601234567027",
+        "IPA (литр)": "4601234567034",
+        "Бутылка ПЭТ 1.5л": "4601234567041",
+        "Крышка": "4601234567058",
+        "Бокал пластиковый": "4601234567065",
+        "Гренки чесночные": "4601234567072",
+        "Кальмар сушёный": "4601234567089",
+    }
 
     products = {}
     for pdata in products_data:
@@ -49,6 +60,12 @@ def seed_database(db: Session) -> None:
         db.add(p)
         db.flush()
         products[pdata["name"]] = p
+        if pdata["name"] in product_barcodes:
+            db.add(ProductBarcode(
+                product_id=p.id,
+                barcode=product_barcodes[pdata["name"]],
+                is_primary=True,
+            ))
 
     kits_data = [
         {

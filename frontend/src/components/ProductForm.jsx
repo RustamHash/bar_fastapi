@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Input, InputNumber, Select, Switch, Tabs, Table, Button, Space, message, Typography } from 'antd';
-import { PlusOutlined, DeleteOutlined, BarcodeOutlined } from '@ant-design/icons';
+import {
+  Modal, Form, Input, InputNumber, Select, Switch, Tabs, Table, Button,
+  Space, message, Typography,
+} from 'antd';
+import { PlusOutlined, DeleteOutlined, BarcodeOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import { productsApi } from '../api';
+import { caseInsensitiveFilterOption } from '../utils/selectFilter';
 
 const CATEGORIES = [
   { value: 'beer', label: 'Пиво' },
@@ -23,6 +27,8 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
   const [isKit, setIsKit] = useState(false);
   const [components, setComponents] = useState([]);
   const [availableComponents, setAvailableComponents] = useState([]);
+  const [barcodes, setBarcodes] = useState([]);
+  const [newBarcode, setNewBarcode] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -44,7 +50,6 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
         ibu: product.ibu,
         is_kit: product.is_kit,
         kit_price_type: product.kit_price_type || 'manual',
-        barcode: product.barcode || '',
         show_in_search: product.show_in_search ?? true,
       });
       setIsKit(product.is_kit);
@@ -58,21 +63,101 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
           price_override: c.price_override,
         }))
       );
+      setBarcodes(
+        (product.barcodes || []).map((bc) => ({
+          id: bc.id,
+          key: bc.id,
+          barcode: bc.barcode,
+          is_primary: bc.is_primary,
+        }))
+      );
     } else {
       form.resetFields();
-      form.setFieldsValue({ kit_price_type: 'manual', min_stock: 0, barcode: '', show_in_search: true });
+      form.setFieldsValue({ kit_price_type: 'manual', min_stock: 0, show_in_search: true });
       setIsKit(false);
       setComponents([]);
+      setBarcodes([]);
     }
+    setNewBarcode('');
   }, [product, open, form]);
+
+  const validateBarcode = (value) => {
+    if (!value || !value.trim()) return null;
+    if (!/^\d{8,13}$/.test(value.trim())) {
+      return 'Штрихкод: 8–13 цифр (EAN-8/EAN-13)';
+    }
+    return null;
+  };
 
   const handleGenerateBarcode = async () => {
     try {
       const res = await productsApi.generateBarcode();
-      form.setFieldsValue({ barcode: res.data.barcode });
+      setNewBarcode(res.data.barcode);
       message.success('Штрихкод сгенерирован');
     } catch {
       message.error('Ошибка генерации штрихкода');
+    }
+  };
+
+  const handleAddBarcode = () => {
+    const trimmed = newBarcode.trim();
+    const err = validateBarcode(trimmed);
+    if (err) {
+      message.error(err);
+      return;
+    }
+    if (barcodes.some((bc) => bc.barcode === trimmed)) {
+      message.error('Этот штрихкод уже добавлен');
+      return;
+    }
+    setBarcodes([
+      ...barcodes,
+      {
+        key: Date.now(),
+        barcode: trimmed,
+        is_primary: barcodes.length === 0,
+      },
+    ]);
+    setNewBarcode('');
+  };
+
+  const handleRemoveBarcode = (key) => {
+    const next = barcodes.filter((bc) => bc.key !== key);
+    if (next.length && !next.some((bc) => bc.is_primary)) {
+      next[0].is_primary = true;
+    }
+    setBarcodes(next);
+  };
+
+  const handleSetPrimary = (key) => {
+    setBarcodes(barcodes.map((bc) => ({ ...bc, is_primary: bc.key === key })));
+  };
+
+  const syncBarcodes = async (productId) => {
+    const existingIds = new Set(barcodes.filter((bc) => bc.id).map((bc) => bc.id));
+    const originalIds = new Set((product?.barcodes || []).map((bc) => bc.id));
+
+    for (const id of originalIds) {
+      if (!existingIds.has(id)) {
+        await productsApi.deleteBarcode(productId, id);
+      }
+    }
+
+    for (const bc of barcodes) {
+      if (bc.id) {
+        const original = (product?.barcodes || []).find((b) => b.id === bc.id);
+        if (original?.is_primary !== bc.is_primary && bc.is_primary) {
+          await productsApi.setPrimaryBarcode(productId, bc.id);
+        }
+      } else {
+        const res = await productsApi.addBarcode(productId, {
+          barcode: bc.barcode,
+          is_primary: bc.is_primary,
+        });
+        if (bc.is_primary && res.data.id) {
+          await productsApi.setPrimaryBarcode(productId, res.data.id);
+        }
+      }
     }
   };
 
@@ -83,7 +168,6 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
 
       const data = {
         ...values,
-        barcode: values.barcode?.trim() || null,
         is_kit: isKit,
         kit_price_type: isKit ? values.kit_price_type : null,
         show_in_search: isKit ? true : (values.show_in_search ?? true),
@@ -100,9 +184,23 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
 
       if (product) {
         await productsApi.update(product.id, data);
+        if (!isKit) {
+          await syncBarcodes(product.id);
+        }
         message.success('Товар обновлён');
       } else {
-        await productsApi.create(data);
+        const res = await productsApi.create(data);
+        if (!isKit && barcodes.length) {
+          for (const bc of barcodes) {
+            const bcRes = await productsApi.addBarcode(res.data.id, {
+              barcode: bc.barcode,
+              is_primary: bc.is_primary,
+            });
+            if (bc.is_primary && bcRes.data.id) {
+              await productsApi.setPrimaryBarcode(res.data.id, bcRes.data.id);
+            }
+          }
+        }
         message.success('Товар создан');
       }
       onSuccess();
@@ -149,7 +247,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
           showSearch
           style={{ width: 200 }}
           placeholder="Выберите товар"
-          optionFilterProp="label"
+          filterOption={caseInsensitiveFilterOption}
           value={record.component_id}
           onChange={(v) => updateComponent(record.key, 'component_id', v)}
           options={availableComponents.map((p) => ({
@@ -221,6 +319,33 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
     },
   ];
 
+  const barcodeColumns = [
+    {
+      title: 'Основной',
+      width: 90,
+      render: (_, record) => (
+        <Button
+          type="text"
+          icon={record.is_primary ? <StarFilled style={{ color: '#faad14' }} /> : <StarOutlined />}
+          onClick={() => handleSetPrimary(record.key)}
+        />
+      ),
+    },
+    { title: 'Штрихкод', dataIndex: 'barcode' },
+    {
+      title: '',
+      width: 50,
+      render: (_, record) => (
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => handleRemoveBarcode(record.key)}
+        />
+      ),
+    },
+  ];
+
   const tabItems = [
     {
       key: 'main',
@@ -256,30 +381,6 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
               </Typography.Text>
             </>
           )}
-          {!isKit && (
-            <Form.Item label="Штрихкод">
-              <Space.Compact style={{ width: '100%' }}>
-                <Form.Item
-                  name="barcode"
-                  noStyle
-                  rules={[
-                    {
-                      validator: (_, value) => {
-                        if (!value || !value.trim()) return Promise.resolve();
-                        if (/^\d{8,13}$/.test(value.trim())) return Promise.resolve();
-                        return Promise.reject(new Error('Штрихкод: 8–13 цифр (EAN-8/EAN-13)'));
-                      },
-                    },
-                  ]}
-                >
-                  <Input maxLength={13} placeholder="4601234567890" style={{ width: 'calc(100% - 140px)' }} />
-                </Form.Item>
-                <Button icon={<BarcodeOutlined />} onClick={handleGenerateBarcode}>
-                  Сгенерировать
-                </Button>
-              </Space.Compact>
-            </Form.Item>
-          )}
           <Form.Item noStyle shouldUpdate={(prev, cur) => prev.category !== cur.category}>
             {({ getFieldValue }) =>
               getFieldValue('category') === 'beer' ? (
@@ -311,6 +412,39 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
       ),
     },
   ];
+
+  if (!isKit) {
+    tabItems.push({
+      key: 'barcodes',
+      label: 'Штрихкоды',
+      children: (
+        <>
+          <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
+            <Input
+              maxLength={13}
+              placeholder="4601234567890"
+              value={newBarcode}
+              onChange={(e) => setNewBarcode(e.target.value)}
+              onPressEnter={handleAddBarcode}
+            />
+            <Button icon={<BarcodeOutlined />} onClick={handleGenerateBarcode}>
+              Сгенерировать
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleAddBarcode}>
+              Добавить штрихкод
+            </Button>
+          </Space.Compact>
+          <Table
+            dataSource={barcodes}
+            columns={barcodeColumns}
+            pagination={false}
+            size="small"
+            rowKey="key"
+          />
+        </>
+      ),
+    });
+  }
 
   if (isKit) {
     tabItems.push({

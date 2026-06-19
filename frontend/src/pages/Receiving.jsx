@@ -5,9 +5,11 @@ import {
 } from 'antd';
 import {
   PlusOutlined, ScanOutlined, CheckOutlined, ArrowLeftOutlined, LinkOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { receivingApi, productsApi } from '../api';
+import { caseInsensitiveFilterOption } from '../utils/selectFilter';
 import { BarcodeInput } from '../components/BarcodeInput';
 import { playSound, getScanSoundType } from '../utils/sounds';
 
@@ -28,6 +30,13 @@ const ITEM_STATUS_LABELS = {
   unknown: { text: 'Неизвестный', color: 'error' },
 };
 
+const productLabel = (p) => `${p.name} (${p.primary_barcode || 'без штрихкода'})`;
+
+const formatBarcode = (barcode, manual) => {
+  if (manual || !barcode) return 'вручную';
+  return barcode;
+};
+
 export default function Receiving() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,12 +44,19 @@ export default function Receiving() {
   const [activeSession, setActiveSession] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [supplier, setSupplier] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
   const [draftItems, setDraftItems] = useState([]);
   const [products, setProducts] = useState([]);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [linkItem, setLinkItem] = useState(null);
   const [linkProductId, setLinkProductId] = useState(null);
   const [confirming, setConfirming] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchProductId, setSearchProductId] = useState(null);
+  const [unknownBarcode, setUnknownBarcode] = useState(null);
+  const [draftLinkOpen, setDraftLinkOpen] = useState(false);
+
+  const nonKitProducts = products.filter((p) => !p.is_kit);
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
@@ -63,36 +79,71 @@ export default function Receiving() {
     setView('scanning');
   };
 
+  const addDraftProduct = (product, { barcode = '', manual = false } = {}) => {
+    const existing = draftItems.find((i) => i.product_id === product.id && i.manual === manual);
+    if (existing) {
+      setDraftItems(draftItems.map((i) =>
+        i.product_id === product.id && i.manual === manual
+          ? { ...i, quantity: i.quantity + 1 }
+          : i
+      ));
+    } else {
+      setDraftItems([...draftItems, {
+        key: Date.now(),
+        product_id: product.id,
+        barcode,
+        manual,
+        product_name: product.name,
+        quantity: 1,
+        purchase_price: null,
+      }]);
+    }
+    playSound('success');
+  };
+
   const handleDraftScan = async (barcode) => {
     try {
       const res = await productsApi.byBarcode(barcode);
-      const product = res.data;
-      const existing = draftItems.find((i) => i.product_id === product.id);
-      if (existing) {
-        setDraftItems(draftItems.map((i) =>
-          i.product_id === product.id ? { ...i, quantity: i.quantity + 1 } : i
-        ));
-      } else {
-        setDraftItems([...draftItems, {
-          key: Date.now(),
-          product_id: product.id,
-          barcode: product.barcode,
-          product_name: product.name,
-          quantity: 1,
-          purchase_price: null,
-        }]);
-      }
-      playSound('success');
+      addDraftProduct(res.data, { barcode });
     } catch {
+      setUnknownBarcode(barcode);
       Modal.confirm({
         title: 'Товар не найден',
-        content: `Штрихкод ${barcode} не найден в системе. Пропустить?`,
-        okText: 'Пропустить',
-        cancelText: 'Отмена',
-        onOk: () => playSound('error'),
+        content: `Штрихкод ${barcode} не найден в системе.`,
+        okText: 'Связать с товаром',
+        cancelText: 'Пропустить',
+        onOk: () => {
+          setDraftLinkOpen(true);
+        },
+        onCancel: () => playSound('error'),
       });
       playSound('error');
     }
+  };
+
+  const handleDraftLink = async () => {
+    if (!linkProductId && !searchProductId) return;
+    const productId = linkProductId || searchProductId;
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+
+    if (unknownBarcode) {
+      try {
+        await productsApi.addBarcode(productId, { barcode: unknownBarcode, is_primary: false });
+        addDraftProduct(product, { barcode: unknownBarcode });
+        setUnknownBarcode(null);
+        setDraftLinkOpen(false);
+        setLinkProductId(null);
+        message.success('Штрихкод привязан к товару');
+      } catch (err) {
+        message.error(err.response?.data?.detail || 'Ошибка привязки');
+      }
+      return;
+    }
+
+    addDraftProduct(product, { manual: true });
+    setSearchOpen(false);
+    setSearchProductId(null);
   };
 
   const startReceiving = async () => {
@@ -107,8 +158,9 @@ export default function Receiving() {
     try {
       const res = await receivingApi.createSession({
         supplier: supplier.trim(),
+        invoice_number: invoiceNumber.trim() || null,
         items: draftItems.map((i) => ({
-          barcode: i.barcode,
+          barcode: i.manual ? null : (i.barcode || null),
           product_id: i.product_id,
           quantity: i.quantity,
           purchase_price: i.purchase_price,
@@ -117,6 +169,7 @@ export default function Receiving() {
       setCreateOpen(false);
       setDraftItems([]);
       setSupplier('');
+      setInvoiceNumber('');
       await loadSession(res.data.session_id);
       fetchSessions();
     } catch (err) {
@@ -146,6 +199,44 @@ export default function Receiving() {
     }
   };
 
+  const handleScanManualAdd = async (productId) => {
+    if (!activeSession || !productId) return;
+    try {
+      await receivingApi.addItem(activeSession.id, {
+        product_id: productId,
+        quantity: 1,
+        purchase_price: null,
+      });
+      playSound('success');
+      const sessionRes = await receivingApi.getSession(activeSession.id);
+      setActiveSession(sessionRes.data);
+      setSearchOpen(false);
+      setSearchProductId(null);
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'Ошибка добавления');
+    }
+  };
+
+  const handleUpdateSessionItem = async (itemId, data) => {
+    try {
+      await receivingApi.updateItem(activeSession.id, itemId, data);
+      const sessionRes = await receivingApi.getSession(activeSession.id);
+      setActiveSession(sessionRes.data);
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'Ошибка обновления');
+    }
+  };
+
+  const handleDeleteSessionItem = async (itemId) => {
+    try {
+      await receivingApi.deleteItem(activeSession.id, itemId);
+      const sessionRes = await receivingApi.getSession(activeSession.id);
+      setActiveSession(sessionRes.data);
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'Ошибка удаления');
+    }
+  };
+
   const handleConfirm = async () => {
     setConfirming(true);
     try {
@@ -168,6 +259,12 @@ export default function Receiving() {
         item_id: linkItem.id,
         product_id: linkProductId,
       });
+      if (linkItem.barcode) {
+        await productsApi.addBarcode(linkProductId, {
+          barcode: linkItem.barcode,
+          is_primary: false,
+        });
+      }
       message.success('Товар связан');
       setLinkModalOpen(false);
       const sessionRes = await receivingApi.getSession(activeSession.id);
@@ -185,6 +282,11 @@ export default function Receiving() {
 
   const sessionColumns = [
     { title: 'Поставщик', dataIndex: 'supplier' },
+    {
+      title: 'Накладная',
+      dataIndex: 'invoice_number',
+      render: (v) => v || '—',
+    },
     {
       title: 'Статус',
       dataIndex: 'status',
@@ -216,10 +318,36 @@ export default function Receiving() {
     },
   ];
 
-  const itemColumns = [
+  const scanningItemColumns = (isActive) => [
     { title: 'Название', dataIndex: 'product_name' },
-    { title: 'Ожидалось', dataIndex: 'expected_quantity' },
-    { title: 'Отсканировано', dataIndex: 'scanned_quantity' },
+    {
+      title: 'Штрихкод',
+      dataIndex: 'barcode',
+      render: (v) => formatBarcode(v),
+    },
+    {
+      title: 'Количество',
+      dataIndex: 'scanned_quantity',
+      render: (v, r) => isActive ? (
+        <InputNumber
+          min={0}
+          value={v}
+          onChange={(val) => handleUpdateSessionItem(r.id, { scanned_quantity: val })}
+        />
+      ) : v,
+    },
+    {
+      title: 'Закупочная цена',
+      dataIndex: 'purchase_price',
+      render: (v, r) => isActive ? (
+        <InputNumber
+          min={0}
+          placeholder="—"
+          value={v}
+          onChange={(val) => handleUpdateSessionItem(r.id, { purchase_price: val })}
+        />
+      ) : (v ?? '—'),
+    },
     {
       title: 'Статус',
       dataIndex: 'status',
@@ -230,17 +358,61 @@ export default function Receiving() {
     },
     {
       title: '',
-      render: (_, r) => r.status === 'unknown' && activeSession?.status === 'scanning' ? (
-        <Button
-          size="small"
-          icon={<LinkOutlined />}
-          onClick={() => { setLinkItem(r); setLinkProductId(null); setLinkModalOpen(true); }}
-        >
-          Связать с товаром
-        </Button>
-      ) : null,
+      render: (_, r) => (
+        <Space>
+          {r.status === 'unknown' && isActive && (
+            <Button
+              size="small"
+              icon={<LinkOutlined />}
+              onClick={() => { setLinkItem(r); setLinkProductId(null); setLinkModalOpen(true); }}
+            >
+              Связать
+            </Button>
+          )}
+          {isActive && (
+            <Button type="text" danger onClick={() => handleDeleteSessionItem(r.id)}>
+              Удалить
+            </Button>
+          )}
+        </Space>
+      ),
     },
   ];
+
+  const productSearchModal = (
+    <Modal
+      title="Поиск товара"
+      open={searchOpen}
+      onCancel={() => { setSearchOpen(false); setSearchProductId(null); }}
+      onOk={() => {
+        if (view === 'scanning') {
+          handleScanManualAdd(searchProductId);
+        } else {
+          const product = products.find((p) => p.id === searchProductId);
+          if (product) {
+            addDraftProduct(product, { manual: true });
+            setSearchOpen(false);
+            setSearchProductId(null);
+          }
+        }
+      }}
+      okText="Добавить"
+      okButtonProps={{ disabled: !searchProductId }}
+    >
+      <Select
+        showSearch
+        style={{ width: '100%' }}
+        placeholder="Выберите товар"
+        filterOption={caseInsensitiveFilterOption}
+        value={searchProductId}
+        onChange={setSearchProductId}
+        options={nonKitProducts.map((p) => ({
+          value: p.id,
+          label: productLabel(p),
+        }))}
+      />
+    </Modal>
+  );
 
   if (view === 'scanning' && activeSession) {
     const progress = calcProgress(activeSession);
@@ -254,23 +426,35 @@ export default function Receiving() {
           </Button>
           <Title level={3} style={{ margin: 0 }}>
             Приёмка: {activeSession.supplier}
+            {activeSession.invoice_number && (
+              <Text type="secondary" style={{ fontSize: 16, marginLeft: 12 }}>
+                № {activeSession.invoice_number}
+              </Text>
+            )}
           </Title>
         </Space>
 
         {isActive && (
-          <div style={{ marginBottom: 24 }}>
+          <Space style={{ marginBottom: 24, width: '100%' }} align="start">
             <BarcodeInput
               onScan={handleScan}
-              style={{ fontSize: 24, padding: '12px 16px' }}
+              style={{ fontSize: 24, padding: '12px 16px', flex: 1 }}
             />
-          </div>
+            <Button
+              icon={<SearchOutlined />}
+              size="large"
+              onClick={() => setSearchOpen(true)}
+            >
+              Поиск товара
+            </Button>
+          </Space>
         )}
 
         <Progress percent={progress} style={{ marginBottom: 16 }} />
 
         <Table
           dataSource={activeSession.items}
-          columns={itemColumns}
+          columns={scanningItemColumns(isActive)}
           rowKey="id"
           pagination={false}
           size="middle"
@@ -297,15 +481,17 @@ export default function Receiving() {
             showSearch
             style={{ width: '100%' }}
             placeholder="Выберите товар"
-            optionFilterProp="label"
+            filterOption={caseInsensitiveFilterOption}
             value={linkProductId}
             onChange={setLinkProductId}
-            options={products.filter((p) => !p.is_kit).map((p) => ({
+            options={nonKitProducts.map((p) => ({
               value: p.id,
-              label: `${p.name} (${p.barcode || 'без штрихкода'})`,
+              label: productLabel(p),
             }))}
           />
         </Modal>
+
+        {productSearchModal}
       </div>
     );
   }
@@ -329,7 +515,12 @@ export default function Receiving() {
       <Modal
         title="Новая приёмка"
         open={createOpen}
-        onCancel={() => { setCreateOpen(false); setDraftItems([]); setSupplier(''); }}
+        onCancel={() => {
+          setCreateOpen(false);
+          setDraftItems([]);
+          setSupplier('');
+          setInvoiceNumber('');
+        }}
         onOk={startReceiving}
         okText="Начать приёмку"
         width={800}
@@ -346,10 +537,23 @@ export default function Receiving() {
         </div>
 
         <div style={{ marginBottom: 16 }}>
+          <Text strong>Номер накладной</Text>
+          <Input
+            value={invoiceNumber}
+            onChange={(e) => setInvoiceNumber(e.target.value)}
+            placeholder="ПК-2024-001 (необязательно)"
+            style={{ marginTop: 8 }}
+          />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
           <Text strong>Штрихкод</Text>
-          <div style={{ marginTop: 8 }}>
-            <BarcodeInput onScan={handleDraftScan} />
-          </div>
+          <Space style={{ marginTop: 8, width: '100%' }}>
+            <BarcodeInput onScan={handleDraftScan} style={{ flex: 1 }} />
+            <Button icon={<SearchOutlined />} onClick={() => setSearchOpen(true)}>
+              Поиск товара
+            </Button>
+          </Space>
         </div>
 
         <Table
@@ -359,7 +563,10 @@ export default function Receiving() {
           size="small"
           columns={[
             { title: 'Название', dataIndex: 'product_name' },
-            { title: 'Штрихкод', dataIndex: 'barcode' },
+            {
+              title: 'Штрихкод',
+              render: (_, r) => formatBarcode(r.barcode, r.manual),
+            },
             {
               title: 'Кол-во',
               dataIndex: 'quantity',
@@ -402,6 +609,31 @@ export default function Receiving() {
           ]}
         />
       </Modal>
+
+      <Modal
+        title="Связать штрихкод с товаром"
+        open={draftLinkOpen}
+        onCancel={() => { setDraftLinkOpen(false); setLinkProductId(null); setUnknownBarcode(null); }}
+        onOk={handleDraftLink}
+        okText="Связать и добавить"
+        okButtonProps={{ disabled: !linkProductId }}
+      >
+        <Text>Штрихкод: <strong>{unknownBarcode}</strong></Text>
+        <Select
+          showSearch
+          style={{ width: '100%', marginTop: 12 }}
+          placeholder="Выберите товар"
+          filterOption={caseInsensitiveFilterOption}
+          value={linkProductId}
+          onChange={setLinkProductId}
+          options={nonKitProducts.map((p) => ({
+            value: p.id,
+            label: productLabel(p),
+          }))}
+        />
+      </Modal>
+
+      {productSearchModal}
     </div>
   );
 }

@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class ReceivingSessionItemInput(BaseModel):
-    barcode: str
+    barcode: str | None = None
     product_id: int | None = None
     quantity: float = 1.0
     purchase_price: float | None = None
@@ -12,6 +12,7 @@ class ReceivingSessionItemInput(BaseModel):
 
 class ReceivingSessionCreate(BaseModel):
     supplier: str
+    invoice_number: str | None = None
     items: list[ReceivingSessionItemInput] = Field(default_factory=list)
 
 
@@ -23,6 +24,7 @@ class ReceivingSessionCreateResponse(BaseModel):
 class ReceivingSessionListItem(BaseModel):
     id: int
     supplier: str
+    invoice_number: str | None
     status: str
     expected_items_count: int
     scanned_items_count: int
@@ -47,6 +49,7 @@ class ReceivingSessionItemResponse(BaseModel):
 class ReceivingSessionDetail(BaseModel):
     id: int
     supplier: str
+    invoice_number: str | None
     status: str
     expected_items_count: int
     scanned_items_count: int
@@ -78,6 +81,12 @@ class ReceivingAddItemRequest(BaseModel):
     purchase_price: float | None = None
 
 
+class ReceivingUpdateItemRequest(BaseModel):
+    expected_quantity: float | None = None
+    scanned_quantity: float | None = None
+    purchase_price: float | None = None
+
+
 class ReceivingLinkItemRequest(BaseModel):
     item_id: int
     product_id: int
@@ -86,10 +95,6 @@ class ReceivingLinkItemRequest(BaseModel):
 class ReceivingConfirmResponse(BaseModel):
     invoice_id: int
     created_batches: list[dict]
-
-
-class BarcodeBindRequest(BaseModel):
-    barcode: str
 
 
 class BarcodeProductResponse(BaseModel):

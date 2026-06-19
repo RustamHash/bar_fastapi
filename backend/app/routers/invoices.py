@@ -26,6 +26,7 @@ def build_invoice_response(invoice: Invoice) -> InvoiceResponse:
         id=invoice.id,
         supplier=invoice.supplier,
         date=invoice.date,
+        invoice_number=invoice.invoice_number,
         total_amount=invoice.total_amount,
         comment=invoice.comment,
         created_at=invoice.created_at,

@@ -11,6 +11,7 @@ class ReceivingSession(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     supplier: Mapped[str] = mapped_column(String(255), nullable=False)
+    invoice_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="draft")
     expected_items_count: Mapped[int] = mapped_column(Integer, default=0)
     scanned_items_count: Mapped[int] = mapped_column(Integer, default=0)

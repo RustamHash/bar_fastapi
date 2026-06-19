@@ -1,23 +1,31 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models.product import Product, KitComponent, ProductBatch, PriceHistory
+from app.models.product import Product, KitComponent, ProductBatch, PriceHistory, ProductBarcode
 from app.routers.auth import get_current_user, User
 from app.schemas.product import (
     ProductCreate,
     ProductUpdate,
     ProductResponse,
+    ProductBarcodeCreate,
+    ProductBarcodeResponse,
     KitComponentResponse,
     ProductBatchResponse,
     PriceHistoryResponse,
 )
 from app.services.batch_service import get_product_stock
-from app.services.kit_service import calculate_kit_price
-from app.services.barcode_service import normalize_barcode, generate_internal_ean13
-from app.schemas.receiving import BarcodeBindRequest, BarcodeProductResponse
+from app.search import ilike_contains
+from app.services.barcode_service import (
+    normalize_barcode,
+    generate_internal_ean13,
+    get_all_barcodes,
+    find_product_by_barcode,
+    get_primary_barcode,
+    check_barcode_unique,
+    set_primary_barcode,
+)
+from app.schemas.receiving import BarcodeProductResponse
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 
@@ -40,6 +48,12 @@ def build_product_response(db: Session, product: Product) -> ProductResponse:
                     component_unit=comp.component.unit,
                 )
             )
+    barcodes = [
+        ProductBarcodeResponse.model_validate(bc) for bc in (product.barcodes or [])
+    ]
+    primary = next((bc.barcode for bc in barcodes if bc.is_primary), None)
+    if not primary and barcodes:
+        primary = barcodes[0].barcode
     return ProductResponse(
         id=product.id,
         name=product.name,
@@ -54,10 +68,18 @@ def build_product_response(db: Session, product: Product) -> ProductResponse:
         kit_price_type=product.kit_price_type,
         is_active=product.is_active,
         show_in_search=product.show_in_search,
-        barcode=product.barcode,
+        primary_barcode=primary,
+        barcodes=barcodes,
         created_at=product.created_at,
         updated_at=product.updated_at,
         components=components,
+    )
+
+
+def product_query(db: Session):
+    return db.query(Product).options(
+        joinedload(Product.kit_components).joinedload(KitComponent.component),
+        joinedload(Product.barcodes),
     )
 
 
@@ -66,28 +88,18 @@ def list_products(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
     category: str | None = None,
+    search: str | None = None,
     active_only: bool = True,
 ):
-    query = db.query(Product).options(
-        joinedload(Product.kit_components).joinedload(KitComponent.component)
-    )
+    query = product_query(db)
     if active_only:
         query = query.filter(Product.is_active == True)  # noqa: E712
     if category:
         query = query.filter(Product.category == category)
+    if search:
+        query = query.filter(ilike_contains(Product.name, search.strip()))
     products = query.order_by(Product.name).all()
     return [build_product_response(db, p) for p in products]
-
-
-def check_barcode_unique(db: Session, barcode: str, exclude_product_id: int | None = None) -> None:
-    if not barcode:
-        return
-    barcode = normalize_barcode(barcode)
-    query = db.query(Product).filter(Product.barcode == barcode)
-    if exclude_product_id:
-        query = query.filter(Product.id != exclude_product_id)
-    if query.first():
-        raise HTTPException(status_code=400, detail="Штрихкод уже используется другим товаром")
 
 
 @router.get("/by-barcode/{barcode}", response_model=BarcodeProductResponse)
@@ -97,7 +109,7 @@ def get_product_by_barcode(
     _: User = Depends(get_current_user),
 ):
     barcode = normalize_barcode(barcode)
-    product = db.query(Product).filter(Product.barcode == barcode).first()
+    product = find_product_by_barcode(db, barcode)
     if not product:
         raise HTTPException(
             status_code=404,
@@ -110,7 +122,7 @@ def get_product_by_barcode(
         unit=product.unit,
         retail_price=product.retail_price,
         stock=stock,
-        barcode=product.barcode,
+        barcode=barcode,
     )
 
 
@@ -119,8 +131,7 @@ def generate_barcode(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    existing = {row.barcode for row in db.query(Product).filter(Product.barcode.isnot(None)).all()}
-    barcode = generate_internal_ean13(existing)
+    barcode = generate_internal_ean13(get_all_barcodes(db))
     return {"barcode": barcode}
 
 
@@ -130,7 +141,7 @@ def available_components(
     _: User = Depends(get_current_user),
 ):
     products = (
-        db.query(Product)
+        product_query(db)
         .filter(Product.is_active == True, Product.is_kit == False)  # noqa: E712
         .order_by(Product.name)
         .all()
@@ -142,17 +153,18 @@ def available_components(
 def list_sellable_products(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
+    search: str | None = None,
 ):
     products = (
-        db.query(Product)
-        .options(joinedload(Product.kit_components).joinedload(KitComponent.component))
+        product_query(db)
         .filter(
             Product.is_active == True,  # noqa: E712
             Product.show_in_search == True,  # noqa: E712
         )
-        .order_by(Product.name)
-        .all()
     )
+    if search:
+        products = products.filter(ilike_contains(Product.name, search.strip()))
+    products = products.order_by(Product.name).all()
     return [build_product_response(db, p) for p in products]
 
 
@@ -162,12 +174,7 @@ def get_product(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    product = (
-        db.query(Product)
-        .options(joinedload(Product.kit_components).joinedload(KitComponent.component))
-        .filter(Product.id == product_id)
-        .first()
-    )
+    product = product_query(db).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Товар не найден")
     return build_product_response(db, product)
@@ -187,9 +194,6 @@ def create_product(
             if component.is_kit:
                 raise HTTPException(status_code=400, detail="Нельзя добавить комплект как компонент")
 
-    if data.barcode:
-        check_barcode_unique(db, data.barcode)
-
     product = Product(
         name=data.name,
         category=data.category,
@@ -200,7 +204,6 @@ def create_product(
         ibu=data.ibu,
         is_kit=data.is_kit,
         kit_price_type=data.kit_price_type if data.is_kit else None,
-        barcode=normalize_barcode(data.barcode) if data.barcode else None,
         show_in_search=True if data.is_kit else data.show_in_search,
     )
     db.add(product)
@@ -220,13 +223,7 @@ def create_product(
             )
 
     db.commit()
-    db.refresh(product)
-    product = (
-        db.query(Product)
-        .options(joinedload(Product.kit_components).joinedload(KitComponent.component))
-        .filter(Product.id == product.id)
-        .first()
-    )
+    product = product_query(db).filter(Product.id == product.id).first()
     return build_product_response(db, product)
 
 
@@ -237,17 +234,9 @@ def update_product(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    product = (
-        db.query(Product)
-        .options(joinedload(Product.kit_components).joinedload(KitComponent.component))
-        .filter(Product.id == product_id)
-        .first()
-    )
+    product = product_query(db).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Товар не найден")
-
-    if data.barcode is not None:
-        check_barcode_unique(db, data.barcode, exclude_product_id=product.id)
 
     if data.retail_price is not None and data.retail_price != product.retail_price:
         db.add(
@@ -260,8 +249,6 @@ def update_product(
 
     update_data = data.model_dump(exclude_unset=True, exclude={"components"})
     for key, value in update_data.items():
-        if key == "barcode" and value:
-            value = normalize_barcode(value)
         setattr(product, key, value)
 
     if data.components is not None and product.is_kit:
@@ -283,12 +270,7 @@ def update_product(
             )
 
     db.commit()
-    product = (
-        db.query(Product)
-        .options(joinedload(Product.kit_components).joinedload(KitComponent.component))
-        .filter(Product.id == product.id)
-        .first()
-    )
+    product = product_query(db).filter(Product.id == product.id).first()
     return build_product_response(db, product)
 
 
@@ -348,10 +330,10 @@ def get_price_history(
     return history
 
 
-@router.post("/{product_id}/barcode")
-def bind_barcode(
+@router.post("/{product_id}/barcodes", response_model=ProductBarcodeResponse, status_code=201)
+def add_barcode(
     product_id: int,
-    data: BarcodeBindRequest,
+    data: ProductBarcodeCreate,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -360,21 +342,81 @@ def bind_barcode(
         raise HTTPException(status_code=404, detail="Товар не найден")
 
     barcode = normalize_barcode(data.barcode)
-    check_barcode_unique(db, barcode, exclude_product_id=product_id)
-    product.barcode = barcode
+    if not barcode:
+        raise HTTPException(status_code=400, detail="Штрихкод не может быть пустым")
+    check_barcode_unique(db, barcode)
+
+    has_barcodes = (
+        db.query(ProductBarcode)
+        .filter(ProductBarcode.product_id == product_id)
+        .count()
+        > 0
+    )
+    is_primary = data.is_primary or not has_barcodes
+    if is_primary:
+        db.query(ProductBarcode).filter(ProductBarcode.product_id == product_id).update(
+            {"is_primary": False}, synchronize_session=False
+        )
+
+    record = ProductBarcode(
+        product_id=product_id,
+        barcode=barcode,
+        is_primary=is_primary,
+    )
+    db.add(record)
     db.commit()
-    return {"message": "Штрихкод привязан", "barcode": barcode}
+    db.refresh(record)
+    return ProductBarcodeResponse.model_validate(record)
 
 
-@router.delete("/{product_id}/barcode")
-def unbind_barcode(
+@router.delete("/{product_id}/barcodes/{barcode_id}")
+def delete_barcode(
     product_id: int,
+    barcode_id: int,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    product = db.query(Product).filter(Product.id == product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Товар не найден")
-    product.barcode = None
+    record = (
+        db.query(ProductBarcode)
+        .filter(ProductBarcode.id == barcode_id, ProductBarcode.product_id == product_id)
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Штрихкод не найден")
+
+    was_primary = record.is_primary
+    db.delete(record)
+    db.flush()
+
+    if was_primary:
+        first = (
+            db.query(ProductBarcode)
+            .filter(ProductBarcode.product_id == product_id)
+            .first()
+        )
+        if first:
+            first.is_primary = True
+
     db.commit()
-    return {"message": "Штрихкод отвязан"}
+    return {"message": "Штрихкод удалён"}
+
+
+@router.post("/{product_id}/barcodes/{barcode_id}/primary", response_model=ProductBarcodeResponse)
+def set_barcode_primary(
+    product_id: int,
+    barcode_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    record = (
+        db.query(ProductBarcode)
+        .filter(ProductBarcode.id == barcode_id, ProductBarcode.product_id == product_id)
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Штрихкод не найден")
+
+    set_primary_barcode(db, product_id, barcode_id)
+    db.commit()
+    db.refresh(record)
+    return ProductBarcodeResponse.model_validate(record)

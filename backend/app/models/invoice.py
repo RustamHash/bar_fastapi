@@ -14,6 +14,7 @@ class Invoice(Base):
     date: Mapped[date] = mapped_column(Date, nullable=False)
     total_amount: Mapped[float] = mapped_column(Float, default=0.0)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    invoice_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     items: Mapped[list["InvoiceItem"]] = relationship(

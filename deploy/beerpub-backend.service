@@ -1,6 +1,6 @@
 [Unit]
 Description=BeerPub Backend (FastAPI)
-After=network-online.target postgresql.service docker.service
+After=network-online.target docker.service
 Wants=network-online.target
 
 [Service]

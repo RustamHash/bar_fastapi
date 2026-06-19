@@ -31,6 +31,7 @@ class InvoiceResponse(BaseModel):
     id: int
     supplier: str
     date: date
+    invoice_number: str | None = None
     total_amount: float
     comment: str | None
     created_at: datetime

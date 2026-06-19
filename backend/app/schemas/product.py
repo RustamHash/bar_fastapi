@@ -3,6 +3,19 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class ProductBarcodeResponse(BaseModel):
+    id: int
+    barcode: str
+    is_primary: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ProductBarcodeCreate(BaseModel):
+    barcode: str
+    is_primary: bool = False
+
+
 class KitComponentCreate(BaseModel):
     component_id: int
     quantity: float
@@ -35,7 +48,6 @@ class ProductCreate(BaseModel):
     ibu: int | None = None
     is_kit: bool = False
     kit_price_type: str | None = "manual"
-    barcode: str | None = None
     show_in_search: bool = True
     components: list[KitComponentCreate] = Field(default_factory=list)
 
@@ -51,7 +63,6 @@ class ProductUpdate(BaseModel):
     is_kit: bool | None = None
     kit_price_type: str | None = None
     is_active: bool | None = None
-    barcode: str | None = None
     show_in_search: bool | None = None
     components: list[KitComponentCreate] | None = None
 
@@ -70,7 +81,8 @@ class ProductResponse(BaseModel):
     kit_price_type: str | None
     is_active: bool
     show_in_search: bool = True
-    barcode: str | None = None
+    primary_barcode: str | None = None
+    barcodes: list[ProductBarcodeResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
     components: list[KitComponentResponse] = Field(default_factory=list)

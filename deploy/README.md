@@ -9,7 +9,6 @@
 
 - Ubuntu 22.04, пользователь `server`
 - Docker 29+ с `docker compose`
-- PostgreSQL на хосте (не в Docker)
 - Traefik с директорией `/data/traefik/dynamic`
 - Клон репозитория: `/data/projects/bar_fastapi`
 - Файл `.env` с продакшен-настройками (не в git)
@@ -135,7 +134,7 @@ sudo systemctl status beerpub-backend
 | Параметр        | Локально (`docker compose up`)     | Продакшен (сервер)                    |
 |-----------------|-------------------------------------|---------------------------------------|
 | Compose-файлы   | `docker-compose.yml` + `override`   | только `docker-compose.yml`           |
-| PostgreSQL      | контейнер `db`                      | хост `172.17.0.1:5432`                |
+| База данных     | SQLite `./beerpub.db` в backend    | SQLite volume `data/beerpub.db`       |
 | Фронтенд        | http://localhost:3000               | https://bar.adgsklad.ru               |
 | API             | http://localhost:8000               | https://bar.adgsklad.ru/api           |
 

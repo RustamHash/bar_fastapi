@@ -17,10 +17,15 @@ from app.schemas.receiving import (
     ReceivingScanRequest,
     ReceivingScanResponse,
     ReceivingAddItemRequest,
+    ReceivingUpdateItemRequest,
     ReceivingLinkItemRequest,
     ReceivingConfirmResponse,
 )
-from app.services.barcode_service import normalize_barcode
+from app.services.barcode_service import (
+    normalize_barcode,
+    find_product_by_barcode,
+    get_primary_barcode,
+)
 from app.services.batch_service import get_product_stock
 
 router = APIRouter(prefix="/api/receiving", tags=["receiving"])
@@ -62,6 +67,7 @@ def build_session_detail(session: ReceivingSession) -> ReceivingSessionDetail:
     return ReceivingSessionDetail(
         id=session.id,
         supplier=session.supplier,
+        invoice_number=session.invoice_number,
         status=session.status,
         expected_items_count=session.expected_items_count,
         scanned_items_count=session.scanned_items_count,
@@ -81,6 +87,7 @@ def create_session(
 ):
     session = ReceivingSession(
         supplier=data.supplier,
+        invoice_number=data.invoice_number.strip() if data.invoice_number else None,
         status="scanning" if data.items else "draft",
     )
     db.add(session)
@@ -89,17 +96,17 @@ def create_session(
     for item_data in data.items:
         product = None
         product_name = "Неизвестный товар"
-        barcode = normalize_barcode(item_data.barcode)
+        barcode = normalize_barcode(item_data.barcode) if item_data.barcode else ""
 
         if item_data.product_id:
             product = db.query(Product).filter(Product.id == item_data.product_id).first()
         if not product and barcode:
-            product = db.query(Product).filter(Product.barcode == barcode).first()
+            product = find_product_by_barcode(db, barcode)
 
         if product:
             product_name = product.name
-            if not barcode and product.barcode:
-                barcode = product.barcode
+            if not barcode:
+                barcode = ""
 
         status = "pending"
         if not product:
@@ -183,7 +190,7 @@ def scan_item(
         session.status = "scanning"
 
     barcode = normalize_barcode(data.barcode)
-    product = db.query(Product).filter(Product.barcode == barcode).first()
+    product = find_product_by_barcode(db, barcode)
 
     session_item = None
     for item in session.items:
@@ -275,6 +282,7 @@ def add_session_item(
     for item in session.items:
         if item.product_id == product.id:
             item.expected_quantity += data.quantity
+            item.scanned_quantity += data.quantity
             if data.purchase_price is not None:
                 item.purchase_price = data.purchase_price
             update_item_status(item)
@@ -286,19 +294,85 @@ def add_session_item(
     item = ReceivingSessionItem(
         session_id=session.id,
         product_id=product.id,
-        barcode=product.barcode or "",
+        barcode="",
         product_name=product.name,
         expected_quantity=data.quantity,
-        scanned_quantity=0,
+        scanned_quantity=data.quantity,
         purchase_price=data.purchase_price,
         status="pending",
     )
     db.add(item)
     db.flush()
+    update_item_status(item)
     update_session_counts(session)
     db.commit()
     db.refresh(item)
     return ReceivingSessionItemResponse.model_validate(item)
+
+
+@router.patch("/sessions/{session_id}/items/{item_id}", response_model=ReceivingSessionItemResponse)
+def update_session_item(
+    session_id: int,
+    item_id: int,
+    data: ReceivingUpdateItemRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    session = (
+        db.query(ReceivingSession)
+        .options(joinedload(ReceivingSession.items))
+        .filter(ReceivingSession.id == session_id)
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+    if session.status not in ("draft", "scanning"):
+        raise HTTPException(status_code=400, detail="Сессия уже завершена или отменена")
+
+    item = next((i for i in session.items if i.id == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Позиция не найдена")
+
+    if data.expected_quantity is not None:
+        item.expected_quantity = data.expected_quantity
+    if data.scanned_quantity is not None:
+        item.scanned_quantity = data.scanned_quantity
+    if data.purchase_price is not None:
+        item.purchase_price = data.purchase_price
+
+    update_item_status(item)
+    update_session_counts(session)
+    db.commit()
+    db.refresh(item)
+    return ReceivingSessionItemResponse.model_validate(item)
+
+
+@router.delete("/sessions/{session_id}/items/{item_id}")
+def delete_session_item(
+    session_id: int,
+    item_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    session = (
+        db.query(ReceivingSession)
+        .options(joinedload(ReceivingSession.items))
+        .filter(ReceivingSession.id == session_id)
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+    if session.status not in ("draft", "scanning"):
+        raise HTTPException(status_code=400, detail="Сессия уже завершена или отменена")
+
+    item = next((i for i in session.items if i.id == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Позиция не найдена")
+
+    db.delete(item)
+    update_session_counts(session)
+    db.commit()
+    return {"message": "Позиция удалена"}
 
 
 @router.post("/sessions/{session_id}/link-item", response_model=ReceivingSessionItemResponse)
@@ -333,8 +407,8 @@ def link_session_item(
 
     item.product_id = product.id
     item.product_name = product.name
-    if product.barcode:
-        item.barcode = product.barcode
+    if not item.barcode:
+        item.barcode = get_primary_barcode(db, product.id) or ""
     update_item_status(item)
     db.commit()
     db.refresh(item)
@@ -387,6 +461,7 @@ def confirm_session(
     invoice = Invoice(
         supplier=session.supplier,
         date=date.today(),
+        invoice_number=session.invoice_number,
         comment="\n".join(comments) if comments else None,
         total_amount=0.0,
     )

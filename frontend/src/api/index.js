@@ -46,8 +46,9 @@ export const productsApi = {
   availableComponents: () => api.get('/products/available-components'),
   getSellable: () => api.get('/products/sellable'),
   byBarcode: (barcode) => api.get(`/products/by-barcode/${encodeURIComponent(barcode)}`),
-  bindBarcode: (id, barcode) => api.post(`/products/${id}/barcode`, { barcode }),
-  unbindBarcode: (id) => api.delete(`/products/${id}/barcode`),
+  addBarcode: (id, data) => api.post(`/products/${id}/barcodes`, data),
+  deleteBarcode: (id, barcodeId) => api.delete(`/products/${id}/barcodes/${barcodeId}`),
+  setPrimaryBarcode: (id, barcodeId) => api.post(`/products/${id}/barcodes/${barcodeId}/primary`),
   generateBarcode: () => api.get('/products/generate-barcode'),
 };
 
@@ -83,6 +84,8 @@ export const receivingApi = {
   createSession: (data) => api.post('/receiving/sessions', data),
   scan: (data) => api.post('/receiving/scan', data),
   addItem: (sessionId, data) => api.post(`/receiving/sessions/${sessionId}/add-item`, data),
+  updateItem: (sessionId, itemId, data) => api.patch(`/receiving/sessions/${sessionId}/items/${itemId}`, data),
+  deleteItem: (sessionId, itemId) => api.delete(`/receiving/sessions/${sessionId}/items/${itemId}`),
   linkItem: (sessionId, data) => api.post(`/receiving/sessions/${sessionId}/link-item`, data),
   confirm: (sessionId) => api.post(`/receiving/sessions/${sessionId}/confirm`),
 };

@@ -15,7 +15,7 @@ from app.schemas.order import (
 )
 from app.services.batch_service import deduct_from_batches, return_to_batches, InsufficientStockError
 from app.services.kit_service import calculate_kit_price, expand_kit_components, check_simple_product_stock
-from app.services.barcode_service import normalize_barcode
+from app.services.barcode_service import normalize_barcode, find_product_by_barcode
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
@@ -287,7 +287,7 @@ def scan_order_item(
         raise HTTPException(status_code=400, detail="Сканирование доступно только для открытых заказов")
 
     barcode = normalize_barcode(data.barcode)
-    product = db.query(Product).filter(Product.barcode == barcode).first()
+    product = find_product_by_barcode(db, barcode)
 
     if not product:
         return OrderScanResponse(

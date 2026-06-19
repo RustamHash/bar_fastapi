@@ -5,6 +5,7 @@ import {
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { invoicesApi, productsApi } from '../api';
+import { caseInsensitiveFilterOption } from '../utils/selectFilter';
 
 const { Title } = Typography;
 
@@ -139,7 +140,7 @@ export default function Invoices() {
                 showSearch
                 style={{ width: 250 }}
                 placeholder="Товар"
-                optionFilterProp="label"
+                filterOption={caseInsensitiveFilterOption}
                 value={item.product_id}
                 onChange={(v) => updateItem(item.key, 'product_id', v)}
                 options={products.map((p) => ({ value: p.id, label: p.name }))}

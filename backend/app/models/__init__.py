@@ -1,4 +1,4 @@
-from app.models.product import Product, KitComponent, ProductBatch, PriceHistory
+from app.models.product import Product, KitComponent, ProductBatch, PriceHistory, ProductBarcode
 from app.models.invoice import Invoice, InvoiceItem
 from app.models.order import Order, OrderItem, BatchMovement, OrderItemBatch
 from app.models.cash import CashSession
@@ -10,6 +10,7 @@ __all__ = [
     "KitComponent",
     "ProductBatch",
     "PriceHistory",
+    "ProductBarcode",
     "Invoice",
     "InvoiceItem",
     "Order",

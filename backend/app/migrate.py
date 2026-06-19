@@ -10,27 +10,20 @@ def run_migrations(engine: Engine) -> None:
     with engine.begin() as conn:
         if "products" in existing_tables:
             cols = {c["name"] for c in inspector.get_columns("products")}
-            if "barcode" not in cols:
-                conn.execute(text(
-                    "ALTER TABLE products ADD COLUMN barcode VARCHAR(50) UNIQUE"
-                ))
-                conn.execute(text(
-                    "CREATE INDEX IF NOT EXISTS ix_products_barcode ON products (barcode)"
-                ))
             if "show_in_search" not in cols:
                 conn.execute(text(
-                    "ALTER TABLE products ADD COLUMN show_in_search BOOLEAN DEFAULT TRUE"
+                    "ALTER TABLE products ADD COLUMN show_in_search BOOLEAN DEFAULT 1"
                 ))
                 conn.execute(text(
-                    "UPDATE products SET show_in_search = FALSE "
-                    "WHERE is_kit = FALSE AND category IN ('beer', 'packaging')"
+                    "UPDATE products SET show_in_search = 0 "
+                    "WHERE is_kit = 0 AND category IN ('beer', 'packaging')"
                 ))
 
         if "orders" in existing_tables:
             cols = {c["name"] for c in inspector.get_columns("orders")}
             if "all_scanned" not in cols:
                 conn.execute(text(
-                    "ALTER TABLE orders ADD COLUMN all_scanned BOOLEAN DEFAULT FALSE"
+                    "ALTER TABLE orders ADD COLUMN all_scanned BOOLEAN DEFAULT 0"
                 ))
             if "comment" not in cols:
                 conn.execute(text(
@@ -54,24 +47,44 @@ def run_migrations(engine: Engine) -> None:
             for col in ("label", "width", "height", "capacity", "section", "is_reserved"):
                 if col in table_cols:
                     conn.execute(text(f"ALTER TABLE tables DROP COLUMN {col}"))
-            number_col = next(
-                (c for c in inspector.get_columns("tables") if c["name"] == "number"),
-                None,
-            )
-            if number_col and "INT" in str(number_col.get("type", "")).upper():
+
+        if "product_barcodes" not in existing_tables:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS product_barcodes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_id INTEGER NOT NULL REFERENCES products(id),
+                    barcode VARCHAR(50) NOT NULL UNIQUE,
+                    is_primary BOOLEAN DEFAULT 0
+                )
+            """))
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_product_barcodes_barcode ON product_barcodes (barcode)"
+            ))
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_product_barcodes_product_id ON product_barcodes (product_id)"
+            ))
+
+        if "products" in existing_tables:
+            cols = {c["name"] for c in inspector.get_columns("products")}
+            if "barcode" in cols:
+                conn.execute(text("""
+                    INSERT OR IGNORE INTO product_barcodes (product_id, barcode, is_primary)
+                    SELECT id, barcode, 1 FROM products
+                    WHERE barcode IS NOT NULL AND barcode != ''
+                """))
+                conn.execute(text("DROP INDEX IF EXISTS ix_products_barcode"))
+                conn.execute(text("ALTER TABLE products DROP COLUMN barcode"))
+
+        if "invoices" in existing_tables:
+            cols = {c["name"] for c in inspector.get_columns("invoices")}
+            if "invoice_number" not in cols:
                 conn.execute(text(
-                    "ALTER TABLE tables ALTER COLUMN number TYPE VARCHAR(50) "
-                    "USING number::text"
+                    "ALTER TABLE invoices ADD COLUMN invoice_number VARCHAR(100)"
                 ))
 
-        if "orders" in existing_tables:
-            order_cols = {c["name"] for c in inspector.get_columns("orders")}
-            col_info = next(
-                (c for c in inspector.get_columns("orders") if c["name"] == "table_num"),
-                None,
-            )
-            if col_info and "INT" in str(col_info.get("type", "")).upper():
+        if "receiving_sessions" in existing_tables:
+            cols = {c["name"] for c in inspector.get_columns("receiving_sessions")}
+            if "invoice_number" not in cols:
                 conn.execute(text(
-                    "ALTER TABLE orders ALTER COLUMN table_num TYPE VARCHAR(50) "
-                    "USING table_num::text"
+                    "ALTER TABLE receiving_sessions ADD COLUMN invoice_number VARCHAR(100)"
                 ))

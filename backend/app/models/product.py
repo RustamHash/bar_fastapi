@@ -21,7 +21,6 @@ class Product(Base):
     kit_price_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     show_in_search: Mapped[bool] = mapped_column(Boolean, default=True)
-    barcode: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -39,6 +38,20 @@ class Product(Base):
     price_history: Mapped[list["PriceHistory"]] = relationship(
         "PriceHistory", back_populates="product"
     )
+    barcodes: Mapped[list["ProductBarcode"]] = relationship(
+        "ProductBarcode", back_populates="product", cascade="all, delete-orphan"
+    )
+
+
+class ProductBarcode(Base):
+    __tablename__ = "product_barcodes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    product_id: Mapped[int] = mapped_column(Integer, ForeignKey("products.id"), nullable=False)
+    barcode: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    product: Mapped["Product"] = relationship("Product", back_populates="barcodes")
 
     @property
     def stock(self) -> float:
