@@ -84,7 +84,7 @@ export default function Orders() {
     setCreating(true);
     try {
       await ordersApi.create({
-        table_num: tableNum,
+        table_num: String(tableNum),
         items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
       });
       message.success('Заказ создан');

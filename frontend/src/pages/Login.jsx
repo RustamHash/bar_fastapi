@@ -21,7 +21,7 @@ export default function Login() {
         role: res.data.role,
       }));
       message.success(`Добро пожаловать, ${res.data.display_name}!`);
-      navigate('/');
+      navigate('/bar');
     } catch {
       message.error('Неверный логин или пароль');
     } finally {

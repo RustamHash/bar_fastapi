@@ -10,7 +10,7 @@ class Order(Base):
     __tablename__ = "orders"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    table_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    table_num: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="open")
     subtotal: Mapped[float] = mapped_column(Float, default=0.0)
     discount: Mapped[float] = mapped_column(Float, default=0.0)
@@ -20,6 +20,7 @@ class Order(Base):
         Integer, ForeignKey("cash_sessions.id"), nullable=True
     )
     all_scanned: Mapped[bool] = mapped_column(Boolean, default=False)
+    comment: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

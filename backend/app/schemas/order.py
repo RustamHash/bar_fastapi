@@ -9,8 +9,18 @@ class OrderItemCreate(BaseModel):
 
 
 class OrderCreate(BaseModel):
-    table_num: int
-    items: list[OrderItemCreate]
+    table_num: str
+    items: list[OrderItemCreate] = Field(default_factory=list)
+    comment: str | None = None
+
+
+class OrderItemAdd(BaseModel):
+    product_id: int
+    quantity: float = 1.0
+
+
+class OrderItemQuantityUpdate(BaseModel):
+    quantity: float
 
 
 class OrderItemResponse(BaseModel):
@@ -35,7 +45,7 @@ class OrderItemResponse(BaseModel):
 
 class OrderResponse(BaseModel):
     id: int
-    table_num: int
+    table_num: str
     status: str
     subtotal: float
     discount: float
@@ -43,6 +53,7 @@ class OrderResponse(BaseModel):
     total_cost: float
     cash_session_id: int | None
     all_scanned: bool = False
+    comment: str | None = None
     created_at: datetime
     paid_at: datetime | None
     items: list[OrderItemResponse] = Field(default_factory=list)
@@ -52,7 +63,7 @@ class OrderResponse(BaseModel):
 
 class OrderListResponse(BaseModel):
     id: int
-    table_num: int
+    table_num: str
     status: str
     subtotal: float
     discount: float
@@ -60,6 +71,7 @@ class OrderListResponse(BaseModel):
     total_cost: float
     items_count: int
     all_scanned: bool = False
+    comment: str | None = None
     created_at: datetime
     paid_at: datetime | None
 

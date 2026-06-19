@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import BarScreen from './pages/BarScreen';
 import Products from './pages/Products';
 import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
@@ -27,7 +28,9 @@ export default function App() {
           </PrivateRoute>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<Navigate to="/bar" replace />} />
+        <Route path="bar" element={<BarScreen />} />
+        <Route path="dashboard" element={<Dashboard />} />
         <Route path="orders" element={<Orders />} />
         <Route path="products" element={<Products />} />
         <Route path="invoices" element={<Invoices />} />

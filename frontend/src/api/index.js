@@ -70,8 +70,7 @@ export const ordersApi = {
 };
 
 export const tablesApi = {
-  list: (params) => api.get('/tables', { params }),
-  plan: () => api.get('/tables/plan'),
+  list: () => api.get('/tables'),
   getOrders: (id) => api.get(`/tables/${id}/orders`),
   create: (data) => api.post('/tables', data),
   update: (id, data) => api.put(`/tables/${id}`, data),

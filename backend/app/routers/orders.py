@@ -5,12 +5,13 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.cash import CashSession
-from app.models.order import Order, OrderItem
+from app.models.order import Order, OrderItem, BatchMovement
 from app.models.product import Product, KitComponent
 from app.routers.auth import get_current_user, User
 from app.schemas.order import (
     OrderCreate, OrderResponse, OrderItemResponse, OrderListResponse,
     OrderScanRequest, OrderScanResponse, OrderScanStatusResponse, OrderScanStatusItem,
+    OrderItemAdd, OrderItemQuantityUpdate,
 )
 from app.services.batch_service import deduct_from_batches, return_to_batches, InsufficientStockError
 from app.services.kit_service import calculate_kit_price, expand_kit_components, check_simple_product_stock
@@ -79,6 +80,7 @@ def build_order_response(order: Order, db: Session) -> OrderResponse:
         total_cost=order.total_cost,
         cash_session_id=order.cash_session_id,
         all_scanned=order.all_scanned,
+        comment=order.comment,
         created_at=order.created_at,
         paid_at=order.paid_at,
         items=items,
@@ -164,6 +166,88 @@ def process_order_item(
         total_cost += item_cost
 
     return subtotal, total_cost
+
+
+def recalculate_order_totals(order: Order) -> None:
+    main_items = [i for i in order.items if not i.is_kit_component]
+    order.subtotal = sum(i.total for i in main_items)
+    order.total = order.subtotal - order.discount
+    order.total_cost = sum(i.cost_price for i in order.items)
+
+
+def return_quantity_from_item(db: Session, item: OrderItem, return_qty: float) -> float:
+    """Return stock LIFO from order item allocations. Returns cost returned."""
+    from app.models.order import OrderItemBatch
+
+    if return_qty <= 0:
+        return 0.0
+
+    allocations = sorted(item.batch_allocations, key=lambda a: a.id, reverse=True)
+    remaining = return_qty
+    cost_returned = 0.0
+
+    for alloc in list(allocations):
+        if remaining <= 0:
+            break
+        ret = min(alloc.quantity, remaining)
+        batch = alloc.batch
+        batch.remaining_quantity += ret
+        if batch.remaining_quantity > 0:
+            batch.is_active = True
+        cost_returned += ret * batch.purchase_price
+
+        movement = BatchMovement(
+            batch_id=batch.id,
+            order_item_id=item.id,
+            quantity=ret,
+            movement_type="return",
+        )
+        db.add(movement)
+
+        alloc.quantity -= ret
+        if alloc.quantity <= 0:
+            db.delete(alloc)
+        remaining -= ret
+
+    return cost_returned
+
+
+def add_product_to_order(
+    db: Session,
+    order: Order,
+    product: Product,
+    quantity: float,
+) -> None:
+    existing = (
+        db.query(OrderItem)
+        .filter(
+            OrderItem.order_id == order.id,
+            OrderItem.product_id == product.id,
+            OrderItem.is_kit_component == False,  # noqa: E712
+        )
+        .first()
+    )
+
+    if existing and not product.is_kit:
+        try:
+            check_simple_product_stock(db, product, quantity)
+        except InsufficientStockError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        additional_cost = deduct_from_batches(db, product.id, quantity, existing)
+        existing.quantity += quantity
+        existing.total = existing.price * existing.quantity
+        existing.cost_price += additional_cost
+    else:
+        try:
+            check_simple_product_stock(db, product, quantity)
+        except InsufficientStockError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        subtotal, total_cost = process_order_item(db, order, product, quantity)
+        order.subtotal += subtotal
+        order.total_cost += total_cost
+
+    recalculate_order_totals(order)
 
 
 def get_scannable_items(order: Order, db: Session) -> list[OrderItem]:
@@ -284,19 +368,21 @@ def create_order(
 ):
     cash_session = get_open_cash_session(db)
 
-    for item_data in data.items:
-        product = db.query(Product).filter(Product.id == item_data.product_id).first()
-        if not product or not product.is_active:
-            raise HTTPException(status_code=400, detail=f"Товар {item_data.product_id} не найден")
-        try:
-            check_simple_product_stock(db, product, item_data.quantity)
-        except InsufficientStockError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+    if data.items:
+        for item_data in data.items:
+            product = db.query(Product).filter(Product.id == item_data.product_id).first()
+            if not product or not product.is_active:
+                raise HTTPException(status_code=400, detail=f"Товар {item_data.product_id} не найден")
+            try:
+                check_simple_product_stock(db, product, item_data.quantity)
+            except InsufficientStockError as e:
+                raise HTTPException(status_code=400, detail=str(e))
 
     order = Order(
-        table_num=data.table_num,
+        table_num=data.table_num.strip(),
         status="open",
         cash_session_id=cash_session.id,
+        comment=data.comment,
     )
     db.add(order)
     db.flush()
@@ -318,6 +404,106 @@ def create_order(
     order.discount = 0.0
     order.total = subtotal - order.discount
     order.total_cost = total_cost
+    db.commit()
+
+    order = (
+        db.query(Order)
+        .options(joinedload(Order.items).joinedload(OrderItem.product))
+        .filter(Order.id == order.id)
+        .first()
+    )
+    return build_order_response(order, db)
+
+
+@router.post("/{order_id}/items", response_model=OrderResponse)
+def add_order_item(
+    order_id: int,
+    data: OrderItemAdd,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    order = (
+        db.query(Order)
+        .options(joinedload(Order.items).joinedload(OrderItem.product))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+    if order.status != "open":
+        raise HTTPException(status_code=400, detail="Заказ уже закрыт")
+
+    product = db.query(Product).filter(Product.id == data.product_id).first()
+    if not product or not product.is_active:
+        raise HTTPException(status_code=400, detail="Товар не найден")
+
+    try:
+        add_product_to_order(db, order, product, data.quantity)
+        db.commit()
+    except InsufficientStockError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    order = (
+        db.query(Order)
+        .options(joinedload(Order.items).joinedload(OrderItem.product))
+        .filter(Order.id == order.id)
+        .first()
+    )
+    return build_order_response(order, db)
+
+
+@router.patch("/{order_id}/items/{item_id}", response_model=OrderResponse)
+def update_order_item_quantity(
+    order_id: int,
+    item_id: int,
+    data: OrderItemQuantityUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    from app.models.order import OrderItemBatch
+
+    order = (
+        db.query(Order)
+        .options(
+            joinedload(Order.items).joinedload(OrderItem.product),
+            joinedload(Order.items).joinedload(OrderItem.batch_allocations).joinedload(OrderItemBatch.batch),
+        )
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+    if order.status != "open":
+        raise HTTPException(status_code=400, detail="Заказ уже закрыт")
+
+    item = next((i for i in order.items if i.id == item_id and not i.is_kit_component), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Позиция не найдена")
+    if item.product.is_kit:
+        raise HTTPException(status_code=400, detail="Изменение количества комплекта не поддерживается")
+
+    if data.quantity <= 0:
+        return_to_batches(db, item)
+        db.delete(item)
+    elif data.quantity > item.quantity:
+        diff = data.quantity - item.quantity
+        try:
+            check_simple_product_stock(db, item.product, diff)
+        except InsufficientStockError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        additional_cost = deduct_from_batches(db, item.product_id, diff, item)
+        item.quantity = data.quantity
+        item.total = item.price * item.quantity
+        item.cost_price += additional_cost
+    elif data.quantity < item.quantity:
+        diff = item.quantity - data.quantity
+        cost_returned = return_quantity_from_item(db, item, diff)
+        item.quantity = data.quantity
+        item.total = item.price * item.quantity
+        item.cost_price = max(0, item.cost_price - cost_returned)
+
+    recalculate_order_totals(order)
     db.commit()
 
     order = (
@@ -354,6 +540,7 @@ def list_orders(
                 total_cost=order.total_cost,
                 items_count=len(main_items),
                 all_scanned=order.all_scanned,
+                comment=order.comment,
                 created_at=order.created_at,
                 paid_at=order.paid_at,
             )

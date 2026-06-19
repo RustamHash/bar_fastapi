@@ -12,15 +12,14 @@ def seed_tables(db: Session) -> None:
         return
 
     layout = [
-        {"number": 1, "label": "1", "position_x": 40, "position_y": 40, "section": "main", "capacity": 4},
-        {"number": 2, "label": "2", "position_x": 160, "position_y": 40, "section": "main", "capacity": 4},
-        {"number": 3, "label": "3", "position_x": 280, "position_y": 40, "section": "main", "capacity": 4},
-        {"number": 4, "label": "4", "position_x": 400, "position_y": 40, "section": "main", "capacity": 6},
-        {"number": 5, "label": "5", "position_x": 100, "position_y": 180, "section": "main", "capacity": 2},
-        {"number": 6, "label": "6", "position_x": 280, "position_y": 180, "section": "main", "capacity": 2},
-        {"number": 7, "label": "T1", "position_x": 40, "position_y": 320, "section": "terrace", "capacity": 4},
-        {"number": 8, "label": "T2", "position_x": 200, "position_y": 320, "section": "terrace", "capacity": 4},
-        {"number": 9, "label": "VIP", "position_x": 520, "position_y": 120, "section": "vip", "capacity": 8, "width": 100, "height": 100},
+        {"number": "1", "position_x": 40, "position_y": 40},
+        {"number": "2", "position_x": 160, "position_y": 40},
+        {"number": "3", "position_x": 280, "position_y": 40},
+        {"number": "4", "position_x": 400, "position_y": 40},
+        {"number": "5", "position_x": 100, "position_y": 160},
+        {"number": "6", "position_x": 280, "position_y": 160},
+        {"number": "Бар", "position_x": 40, "position_y": 280},
+        {"number": "У окна", "position_x": 200, "position_y": 280},
     ]
 
     for tdata in layout:
