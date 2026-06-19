@@ -34,9 +34,9 @@ export default function Login() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #2c1810 0%, #4a2c17 50%, #1a0f0a 100%)',
+      background: 'linear-gradient(135deg, #2c1810 0%, #4a2c17 50%, #8B5E3C 100%)',
     }}>
-      <Card style={{ width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+      <Card style={{ width: 400, background: '#ffffff', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <span style={{ fontSize: 56, lineHeight: 1 }} role="img" aria-label="медведь">🐻</span>
           <Title level={2} style={{ marginTop: 8, color: '#8B5E3C' }}>Берлога</Title>

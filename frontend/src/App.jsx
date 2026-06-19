@@ -1,4 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { ConfigProvider } from 'antd';
+import ruRU from 'antd/locale/ru_RU';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -16,28 +18,59 @@ function PrivateRoute({ children }) {
   return children;
 }
 
+const berlogaTheme = {
+  token: {
+    colorPrimary: '#8B5E3C',
+    colorBgBase: '#fdfaf5',
+    colorTextBase: '#2c1810',
+    colorBgContainer: '#ffffff',
+    borderRadius: 6,
+  },
+  components: {
+    Layout: {
+      headerBg: '#3c2415',
+      siderBg: '#2c1810',
+      bodyBg: '#fdfaf5',
+    },
+    Menu: {
+      darkItemBg: '#2c1810',
+      darkItemSelectedBg: '#8B5E3C',
+      darkItemColor: '#D4A574',
+    },
+    Card: {
+      colorBgContainer: '#ffffff',
+    },
+    Table: {
+      headerBg: '#f5f0e8',
+      colorBgContainer: '#ffffff',
+    },
+  },
+};
+
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route
-        path="/"
-        element={
-          <PrivateRoute>
-            <Layout />
-          </PrivateRoute>
-        }
-      >
-        <Route index element={<Navigate to="/bar" replace />} />
-        <Route path="bar" element={<BarScreen />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="orders" element={<Orders />} />
-        <Route path="products" element={<Products />} />
-        <Route path="invoices" element={<Invoices />} />
-        <Route path="receiving" element={<Receiving />} />
-        <Route path="cash" element={<CashRegister />} />
-        <Route path="reports" element={<Reports />} />
-      </Route>
-    </Routes>
+    <ConfigProvider locale={ruRU} theme={berlogaTheme}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <Layout />
+            </PrivateRoute>
+          }
+        >
+          <Route index element={<Navigate to="/bar" replace />} />
+          <Route path="bar" element={<BarScreen />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="orders" element={<Orders />} />
+          <Route path="products" element={<Products />} />
+          <Route path="invoices" element={<Invoices />} />
+          <Route path="receiving" element={<Receiving />} />
+          <Route path="cash" element={<CashRegister />} />
+          <Route path="reports" element={<Reports />} />
+        </Route>
+      </Routes>
+    </ConfigProvider>
   );
 }

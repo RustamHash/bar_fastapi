@@ -15,8 +15,9 @@ import {
 const { Header, Sider, Content } = AntLayout;
 
 const primaryColor = '#8B5E3C';
-const headerBackground = '#2c1810';
-const sidebarBackground = '#1a0f0a';
+const headerBackground = '#3c2415';
+const sidebarBackground = '#2c1810';
+const bodyBackground = '#fdfaf5';
 const accentColor = '#D4A574';
 
 const menuItems = [
@@ -111,9 +112,9 @@ export default function Layout() {
         <Content style={{
           margin: 24,
           padding: 24,
-          background: '#faf6f1',
+          background: bodyBackground,
           borderRadius: 8,
-          border: `1px solid ${primaryColor}33`,
+          border: `1px solid ${primaryColor}22`,
         }}>
           <Outlet />
         </Content>
