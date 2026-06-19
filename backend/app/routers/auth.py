@@ -13,8 +13,8 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 USERS = {
-    "admin": {"username": "admin", "password": "beer123", "role": "admin"},
-    "bartender": {"username": "bartender", "password": "beer123", "role": "bartender"},
+    "amir": {"username": "amir", "password": "123", "role": "admin"},
+    "adam": {"username": "adam", "password": "123", "role": "admin"},
 }
 
 
