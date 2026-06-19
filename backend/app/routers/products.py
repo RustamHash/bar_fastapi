@@ -67,7 +67,7 @@ def build_product_response(db: Session, product: Product) -> ProductResponse:
         is_kit=product.is_kit,
         kit_price_type=product.kit_price_type,
         is_active=product.is_active,
-        show_in_search=product.show_in_search,
+        sellable=product.sellable,
         primary_barcode=primary,
         barcodes=barcodes,
         created_at=product.created_at,
@@ -159,7 +159,7 @@ def list_sellable_products(
         product_query(db)
         .filter(
             Product.is_active == True,  # noqa: E712
-            Product.show_in_search == True,  # noqa: E712
+            Product.sellable == True,  # noqa: E712
         )
     )
     if search:
@@ -204,7 +204,7 @@ def create_product(
         ibu=data.ibu,
         is_kit=data.is_kit,
         kit_price_type=data.kit_price_type if data.is_kit else None,
-        show_in_search=True if data.is_kit else data.show_in_search,
+        sellable=True if data.is_kit else data.sellable,
     )
     db.add(product)
     db.flush()

@@ -50,7 +50,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
         ibu: product.ibu,
         is_kit: product.is_kit,
         kit_price_type: product.kit_price_type || 'manual',
-        show_in_search: product.show_in_search ?? true,
+        sellable: product.sellable ?? true,
       });
       setIsKit(product.is_kit);
       setComponents(
@@ -73,7 +73,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
       );
     } else {
       form.resetFields();
-      form.setFieldsValue({ kit_price_type: 'manual', min_stock: 0, show_in_search: true });
+      form.setFieldsValue({ kit_price_type: 'manual', min_stock: 0, sellable: true });
       setIsKit(false);
       setComponents([]);
       setBarcodes([]);
@@ -170,7 +170,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
         ...values,
         is_kit: isKit,
         kit_price_type: isKit ? values.kit_price_type : null,
-        show_in_search: isKit ? true : (values.show_in_search ?? true),
+        sellable: isKit ? true : (values.sellable ?? true),
         components: isKit
           ? components.map((c) => ({
               component_id: c.component_id,
@@ -184,13 +184,11 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
 
       if (product) {
         await productsApi.update(product.id, data);
-        if (!isKit) {
-          await syncBarcodes(product.id);
-        }
+        await syncBarcodes(product.id);
         message.success('Товар обновлён');
       } else {
         const res = await productsApi.create(data);
-        if (!isKit && barcodes.length) {
+        if (barcodes.length) {
           for (const bc of barcodes) {
             const bcRes = await productsApi.addBarcode(res.data.id, {
               barcode: bc.barcode,
@@ -370,14 +368,14 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
           {!isKit && (
             <>
               <Form.Item
-                name="show_in_search"
-                label="Показывать при продаже"
+                name="sellable"
+                label="Доступен для продажи"
                 valuePropName="checked"
               >
                 <Switch />
               </Form.Item>
               <Typography.Text type="secondary" style={{ display: 'block', marginTop: -16, marginBottom: 16 }}>
-                Если выключено — товар не виден при создании заказа, используется только как компонент комплекта
+                Если выключено — товар нельзя добавить в заказ, но можно принять в накладной
               </Typography.Text>
             </>
           )}
@@ -413,38 +411,36 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
     },
   ];
 
-  if (!isKit) {
-    tabItems.push({
-      key: 'barcodes',
-      label: 'Штрихкоды',
-      children: (
-        <>
-          <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
-            <Input
-              maxLength={13}
-              placeholder="4601234567890"
-              value={newBarcode}
-              onChange={(e) => setNewBarcode(e.target.value)}
-              onPressEnter={handleAddBarcode}
-            />
-            <Button icon={<BarcodeOutlined />} onClick={handleGenerateBarcode}>
-              Сгенерировать
-            </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleAddBarcode}>
-              Добавить штрихкод
-            </Button>
-          </Space.Compact>
-          <Table
-            dataSource={barcodes}
-            columns={barcodeColumns}
-            pagination={false}
-            size="small"
-            rowKey="key"
+  tabItems.push({
+    key: 'barcodes',
+    label: 'Штрихкоды',
+    children: (
+      <>
+        <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
+          <Input
+            maxLength={13}
+            placeholder="4601234567890"
+            value={newBarcode}
+            onChange={(e) => setNewBarcode(e.target.value)}
+            onPressEnter={handleAddBarcode}
           />
-        </>
-      ),
-    });
-  }
+          <Button icon={<BarcodeOutlined />} onClick={handleGenerateBarcode}>
+            Сгенерировать
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAddBarcode}>
+            Добавить штрихкод
+          </Button>
+        </Space.Compact>
+        <Table
+          dataSource={barcodes}
+          columns={barcodeColumns}
+          pagination={false}
+          size="small"
+          rowKey="key"
+        />
+      </>
+    ),
+  });
 
   if (isKit) {
     tabItems.push({

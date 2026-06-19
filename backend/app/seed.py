@@ -33,14 +33,14 @@ def seed_database(db: Session) -> None:
         return
 
     products_data = [
-        {"name": "Жигулевское (литр)", "category": "beer", "unit": "liter", "retail_price": 400, "min_stock": 10, "abv": 4.5, "show_in_search": False},
-        {"name": "Чешское (литр)", "category": "beer", "unit": "liter", "retail_price": 500, "min_stock": 10, "abv": 4.8, "show_in_search": False},
-        {"name": "IPA (литр)", "category": "beer", "unit": "liter", "retail_price": 700, "min_stock": 5, "abv": 6.5, "show_in_search": False},
-        {"name": "Бутылка ПЭТ 1.5л", "category": "packaging", "unit": "piece", "retail_price": 50, "min_stock": 20, "show_in_search": False},
-        {"name": "Крышка", "category": "packaging", "unit": "piece", "retail_price": 5, "min_stock": 50, "show_in_search": False},
-        {"name": "Бокал пластиковый", "category": "packaging", "unit": "piece", "retail_price": 30, "min_stock": 30, "show_in_search": False},
-        {"name": "Гренки чесночные", "category": "snack", "unit": "piece", "retail_price": 150, "min_stock": 5, "show_in_search": True},
-        {"name": "Кальмар сушёный", "category": "snack", "unit": "kg", "retail_price": 800, "min_stock": 2, "show_in_search": True},
+        {"name": "Жигулевское (литр)", "category": "beer", "unit": "liter", "retail_price": 400, "min_stock": 10, "abv": 4.5, "sellable": False},
+        {"name": "Чешское (литр)", "category": "beer", "unit": "liter", "retail_price": 500, "min_stock": 10, "abv": 4.8, "sellable": False},
+        {"name": "IPA (литр)", "category": "beer", "unit": "liter", "retail_price": 700, "min_stock": 5, "abv": 6.5, "sellable": False},
+        {"name": "Бутылка ПЭТ 1.5л", "category": "packaging", "unit": "piece", "retail_price": 50, "min_stock": 20, "sellable": False},
+        {"name": "Крышка", "category": "packaging", "unit": "piece", "retail_price": 5, "min_stock": 50, "sellable": False},
+        {"name": "Бокал пластиковый", "category": "packaging", "unit": "piece", "retail_price": 30, "min_stock": 30, "sellable": False},
+        {"name": "Гренки чесночные", "category": "snack", "unit": "piece", "retail_price": 150, "min_stock": 5, "sellable": True},
+        {"name": "Кальмар сушёный", "category": "snack", "unit": "kg", "retail_price": 800, "min_stock": 2, "sellable": True},
     ]
 
     product_barcodes = {
@@ -111,7 +111,7 @@ def seed_database(db: Session) -> None:
             min_stock=0,
             is_kit=True,
             kit_price_type="manual",
-            show_in_search=True,
+            sellable=True,
         )
         db.add(kit)
         db.flush()
@@ -171,19 +171,20 @@ def seed_database(db: Session) -> None:
             item_total = qty * price
             total += item_total
 
-            db.add(
-                InvoiceItem(
-                    invoice_id=invoice.id,
-                    product_id=product.id,
-                    quantity=qty,
-                    purchase_price=price,
-                    total=item_total,
-                )
+            invoice_item = InvoiceItem(
+                invoice_id=invoice.id,
+                product_id=product.id,
+                quantity=qty,
+                purchase_price=price,
+                total=item_total,
             )
+            db.add(invoice_item)
+            db.flush()
             db.add(
                 ProductBatch(
                     product_id=product.id,
                     invoice_id=invoice.id,
+                    invoice_item_id=invoice_item.id,
                     quantity=qty,
                     remaining_quantity=qty,
                     purchase_price=price,

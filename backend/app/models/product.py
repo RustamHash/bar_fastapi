@@ -20,7 +20,7 @@ class Product(Base):
     is_kit: Mapped[bool] = mapped_column(Boolean, default=False)
     kit_price_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    show_in_search: Mapped[bool] = mapped_column(Boolean, default=True)
+    sellable: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -85,6 +85,9 @@ class ProductBatch(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     product_id: Mapped[int] = mapped_column(Integer, ForeignKey("products.id"), nullable=False)
     invoice_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("invoices.id"), nullable=True)
+    invoice_item_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("invoice_items.id"), nullable=True
+    )
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
     remaining_quantity: Mapped[float] = mapped_column(Float, nullable=False)
     purchase_price: Mapped[float] = mapped_column(Float, nullable=False)

@@ -70,7 +70,7 @@ export default function Receiving() {
 
   useEffect(() => {
     fetchSessions();
-    productsApi.list().then((res) => setProducts(res.data));
+    productsApi.getAll().then((res) => setProducts(res.data));
   }, [fetchSessions]);
 
   const loadSession = async (id) => {

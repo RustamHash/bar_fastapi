@@ -123,7 +123,7 @@ export default function Products() {
     },
     {
       title: 'В продаже',
-      dataIndex: 'show_in_search',
+      dataIndex: 'sellable',
       width: 100,
       render: (v) => (v ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CloseOutlined style={{ color: '#ff4d4f' }} />),
     },

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Table, Button, Typography, Modal, Input, DatePicker, Select, InputNumber, Space, message,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { invoicesApi, productsApi } from '../api';
 import { caseInsensitiveFilterOption } from '../utils/selectFilter';
@@ -10,11 +11,13 @@ import { caseInsensitiveFilterOption } from '../utils/selectFilter';
 const { Title } = Typography;
 
 export default function Invoices() {
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [supplier, setSupplier] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
   const [date, setDate] = useState(dayjs());
   const [comment, setComment] = useState('');
   const [items, setItems] = useState([{ key: 1, product_id: null, quantity: 1, purchase_price: 0 }]);
@@ -32,7 +35,7 @@ export default function Invoices() {
 
   useEffect(() => {
     fetchInvoices();
-    productsApi.availableComponents().then((res) => setProducts(res.data));
+    productsApi.getAll().then((res) => setProducts(res.data));
   }, [fetchInvoices]);
 
   const addItem = () => {
@@ -62,8 +65,9 @@ export default function Invoices() {
     }
     setCreating(true);
     try {
-      await invoicesApi.create({
+      const res = await invoicesApi.create({
         supplier,
+        invoice_number: invoiceNumber || null,
         date: date.format('YYYY-MM-DD'),
         comment: comment || null,
         items: validItems.map((i) => ({
@@ -75,9 +79,11 @@ export default function Invoices() {
       message.success('Накладная создана');
       setModalOpen(false);
       setSupplier('');
+      setInvoiceNumber('');
       setComment('');
       setItems([{ key: 1, product_id: null, quantity: 1, purchase_price: 0 }]);
       fetchInvoices();
+      navigate(`/invoices/${res.data.id}`);
     } catch (err) {
       message.error(err.response?.data?.detail || 'Ошибка');
     } finally {
@@ -87,6 +93,11 @@ export default function Invoices() {
 
   const columns = [
     { title: '№', dataIndex: 'id', width: 60 },
+    {
+      title: 'Номер',
+      dataIndex: 'invoice_number',
+      render: (v) => v || '—',
+    },
     { title: 'Поставщик', dataIndex: 'supplier' },
     {
       title: 'Дата',
@@ -99,6 +110,19 @@ export default function Invoices() {
       render: (v) => `${v.toFixed(2)} ₽`,
     },
     { title: 'Комментарий', dataIndex: 'comment', ellipsis: true },
+    {
+      title: '',
+      width: 100,
+      render: (_, record) => (
+        <Button
+          size="small"
+          icon={<EyeOutlined />}
+          onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${record.id}`); }}
+        >
+          Открыть
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -110,7 +134,16 @@ export default function Invoices() {
         </Button>
       </div>
 
-      <Table dataSource={invoices} columns={columns} rowKey="id" loading={loading} />
+      <Table
+        dataSource={invoices}
+        columns={columns}
+        rowKey="id"
+        loading={loading}
+        onRow={(record) => ({
+          onClick: () => navigate(`/invoices/${record.id}`),
+          style: { cursor: 'pointer' },
+        })}
+      />
 
       <Modal
         title="Новая накладная"
@@ -125,6 +158,15 @@ export default function Invoices() {
           <div>
             <span style={{ marginRight: 8 }}>Поставщик:</span>
             <Input value={supplier} onChange={(e) => setSupplier(e.target.value)} style={{ width: 300 }} />
+          </div>
+          <div>
+            <span style={{ marginRight: 8 }}>Номер накладной:</span>
+            <Input
+              value={invoiceNumber}
+              onChange={(e) => setInvoiceNumber(e.target.value)}
+              style={{ width: 200 }}
+              placeholder="Номер от поставщика"
+            />
           </div>
           <div>
             <span style={{ marginRight: 8 }}>Дата:</span>

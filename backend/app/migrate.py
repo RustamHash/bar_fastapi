@@ -10,14 +10,19 @@ def run_migrations(engine: Engine) -> None:
     with engine.begin() as conn:
         if "products" in existing_tables:
             cols = {c["name"] for c in inspector.get_columns("products")}
-            if "show_in_search" not in cols:
-                conn.execute(text(
-                    "ALTER TABLE products ADD COLUMN show_in_search BOOLEAN DEFAULT 1"
-                ))
-                conn.execute(text(
-                    "UPDATE products SET show_in_search = 0 "
-                    "WHERE is_kit = 0 AND category IN ('beer', 'packaging')"
-                ))
+            if "sellable" not in cols:
+                if "show_in_search" in cols:
+                    conn.execute(text(
+                        "ALTER TABLE products RENAME COLUMN show_in_search TO sellable"
+                    ))
+                else:
+                    conn.execute(text(
+                        "ALTER TABLE products ADD COLUMN sellable BOOLEAN DEFAULT 1"
+                    ))
+                    conn.execute(text(
+                        "UPDATE products SET sellable = 0 "
+                        "WHERE is_kit = 0 AND category IN ('beer', 'packaging')"
+                    ))
 
         if "orders" in existing_tables:
             cols = {c["name"] for c in inspector.get_columns("orders")}
@@ -87,4 +92,12 @@ def run_migrations(engine: Engine) -> None:
             if "invoice_number" not in cols:
                 conn.execute(text(
                     "ALTER TABLE receiving_sessions ADD COLUMN invoice_number VARCHAR(100)"
+                ))
+
+        if "product_batches" in existing_tables:
+            cols = {c["name"] for c in inspector.get_columns("product_batches")}
+            if "invoice_item_id" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE product_batches ADD COLUMN invoice_item_id INTEGER "
+                    "REFERENCES invoice_items(id)"
                 ))

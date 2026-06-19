@@ -37,6 +37,7 @@ export const authApi = {
 
 export const productsApi = {
   list: (params) => api.get('/products', { params }),
+  getAll: (params) => api.get('/products', { params }),
   get: (id) => api.get(`/products/${id}`),
   create: (data) => api.post('/products', data),
   update: (id, data) => api.put(`/products/${id}`, data),
@@ -56,6 +57,7 @@ export const invoicesApi = {
   list: () => api.get('/invoices'),
   get: (id) => api.get(`/invoices/${id}`),
   create: (data) => api.post('/invoices', data),
+  update: (id, data) => api.put(`/invoices/${id}`, data),
 };
 
 export const ordersApi = {
@@ -63,7 +65,7 @@ export const ordersApi = {
   get: (id) => api.get(`/orders/${id}`),
   create: (data) => api.post('/orders', data),
   pay: (id) => api.post(`/orders/${id}/pay`),
-  cancel: (id) => api.post(`/orders/${id}/cancel`),
+  cancel: (id, data) => api.post(`/orders/${id}/cancel`, data),
   scan: (data) => api.post('/orders/scan', data),
   scanStatus: (id) => api.get(`/orders/${id}/scan-status`),
   addItem: (orderId, data) => api.post(`/orders/${orderId}/items`, data),
