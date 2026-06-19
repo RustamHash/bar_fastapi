@@ -4,7 +4,7 @@ import {
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, HistoryOutlined, StopOutlined,
-  CheckOutlined, CloseOutlined,
+  CheckOutlined, CloseOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import { productsApi } from '../api';
 import ProductForm from '../components/ProductForm';
@@ -20,6 +20,12 @@ const CATEGORY_LABELS = {
 };
 
 const UNIT_LABELS = { liter: 'л', piece: 'шт', kg: 'кг' };
+
+function stockTagColor(stock, minStock) {
+  if (stock <= 0) return 'red';
+  if (stock <= minStock) return 'gold';
+  return 'green';
+}
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -132,10 +138,11 @@ export default function Products() {
       dataIndex: 'stock',
       render: (val, record) => {
         const unit = UNIT_LABELS[record.unit] || record.unit;
-        const low = !record.is_kit && val <= record.min_stock;
+        if (record.is_kit) return '—';
+        const color = stockTagColor(val, record.min_stock);
         return (
-          <Tag color={low ? 'red' : 'green'}>
-            {record.is_kit ? '—' : `${val} ${unit}`}
+          <Tag color={color} icon={val <= 0 ? <WarningOutlined /> : undefined}>
+            {val} {unit}
           </Tag>
         );
       },

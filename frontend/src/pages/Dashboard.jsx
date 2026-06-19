@@ -4,11 +4,19 @@ import {
   DollarOutlined,
   ShoppingCartOutlined,
   ClockCircleOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { reportsApi } from '../api';
 
 const { Title } = Typography;
 
+const UNIT_LABELS = { liter: 'л', piece: 'шт', kg: 'кг' };
+
+function stockTagColor(stock, minStock) {
+  if (stock <= 0) return 'red';
+  if (stock <= minStock) return 'gold';
+  return 'green';
+}
 const CATEGORY_LABELS = {
   beer: 'Пиво',
   snack: 'Закуски',
@@ -50,9 +58,15 @@ export default function Dashboard() {
       title: 'Остаток',
       dataIndex: 'stock',
       key: 'stock',
-      render: (val, record) => (
-        <Tag color="red">{val} {record.unit === 'liter' ? 'л' : record.unit === 'kg' ? 'кг' : 'шт'}</Tag>
-      ),
+      render: (val, record) => {
+        const unit = UNIT_LABELS[record.unit] || record.unit;
+        const color = stockTagColor(val, record.min_stock);
+        return (
+          <Tag color={color} icon={val <= 0 ? <WarningOutlined /> : undefined}>
+            {val} {unit}
+          </Tag>
+        );
+      },
     },
     { title: 'Мин. остаток', dataIndex: 'min_stock', key: 'min_stock' },
   ];
@@ -109,7 +123,11 @@ export default function Dashboard() {
         rowKey="id"
         pagination={false}
         locale={{ emptyText: 'Все остатки в норме' }}
+        rowClassName={(record) => (record.stock <= 0 ? 'low-stock-negative' : '')}
       />
+      <style>{`
+        .low-stock-negative td { background: #fff1f0 !important; }
+      `}</style>
     </div>
   );
 }

@@ -26,7 +26,7 @@ from app.services.barcode_service import (
     find_product_by_barcode,
     get_primary_barcode,
 )
-from app.services.batch_service import get_product_stock
+from app.services.batch_service import get_product_stock, offset_debt_with_batch
 
 router = APIRouter(prefix="/api/receiving", tags=["receiving"])
 
@@ -476,18 +476,19 @@ def confirm_session(
         item_total = item.scanned_quantity * purchase_price
         total_amount += item_total
 
-        db.add(
-            InvoiceItem(
-                invoice_id=invoice.id,
-                product_id=item.product_id,
-                quantity=item.scanned_quantity,
-                purchase_price=purchase_price,
-                total=item_total,
-            )
+        invoice_item = InvoiceItem(
+            invoice_id=invoice.id,
+            product_id=item.product_id,
+            quantity=item.scanned_quantity,
+            purchase_price=purchase_price,
+            total=item_total,
         )
+        db.add(invoice_item)
+        db.flush()
         batch = ProductBatch(
             product_id=item.product_id,
             invoice_id=invoice.id,
+            invoice_item_id=invoice_item.id,
             quantity=item.scanned_quantity,
             remaining_quantity=item.scanned_quantity,
             purchase_price=purchase_price,
@@ -495,6 +496,7 @@ def confirm_session(
         )
         db.add(batch)
         db.flush()
+        offset_debt_with_batch(db, batch)
         created_batches.append({
             "batch_id": batch.id,
             "product_id": item.product_id,

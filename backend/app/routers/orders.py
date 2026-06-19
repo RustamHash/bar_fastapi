@@ -11,10 +11,10 @@ from app.routers.auth import get_current_user, User
 from app.schemas.order import (
     OrderCreate, OrderResponse, OrderItemResponse, OrderListResponse,
     OrderScanRequest, OrderScanResponse, OrderScanStatusResponse, OrderScanStatusItem,
-    OrderItemAdd, OrderItemQuantityUpdate,
+    OrderItemAdd, OrderItemQuantityUpdate, OrderCancelRequest,
 )
-from app.services.batch_service import deduct_from_batches, return_to_batches, InsufficientStockError
-from app.services.kit_service import calculate_kit_price, expand_kit_components, check_simple_product_stock
+from app.services.batch_service import deduct_from_batches, return_to_batches
+from app.services.kit_service import calculate_kit_price, expand_kit_components
 from app.services.barcode_service import normalize_barcode, find_product_by_barcode
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
@@ -197,7 +197,9 @@ def return_quantity_from_item(db: Session, item: OrderItem, return_qty: float) -
         ret = min(alloc.quantity, remaining)
         batch = alloc.batch
         batch.remaining_quantity += ret
-        if batch.remaining_quantity > 0:
+        if batch.remaining_quantity == 0:
+            batch.is_active = False
+        else:
             batch.is_active = True
         cost_returned += ret * batch.purchase_price
 
@@ -234,20 +236,11 @@ def add_product_to_order(
     )
 
     if existing and not product.is_kit:
-        try:
-            check_simple_product_stock(db, product, quantity)
-        except InsufficientStockError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-
         additional_cost = deduct_from_batches(db, product.id, quantity, existing)
         existing.quantity += quantity
         existing.total = existing.price * existing.quantity
         existing.cost_price += additional_cost
     else:
-        try:
-            check_simple_product_stock(db, product, quantity)
-        except InsufficientStockError as e:
-            raise HTTPException(status_code=400, detail=str(e))
         subtotal, total_cost = process_order_item(db, order, product, quantity)
         order.subtotal += subtotal
         order.total_cost += total_cost
@@ -376,10 +369,6 @@ def create_order(
             product = db.query(Product).filter(Product.id == item_data.product_id).first()
             if not product or not product.is_active:
                 raise HTTPException(status_code=400, detail=f"Товар {item_data.product_id} не найден")
-            try:
-                check_simple_product_stock(db, product, item_data.quantity)
-            except InsufficientStockError as e:
-                raise HTTPException(status_code=400, detail=str(e))
 
     order = Order(
         table_num=data.table_num.strip(),
@@ -392,15 +381,11 @@ def create_order(
     subtotal = 0.0
     total_cost = 0.0
 
-    try:
-        for item_data in data.items:
-            product = db.query(Product).filter(Product.id == item_data.product_id).first()
-            s, c = process_order_item(db, order, product, item_data.quantity)
-            subtotal += s
-            total_cost += c
-    except InsufficientStockError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+    for item_data in data.items:
+        product = db.query(Product).filter(Product.id == item_data.product_id).first()
+        s, c = process_order_item(db, order, product, item_data.quantity)
+        subtotal += s
+        total_cost += c
 
     order.subtotal = subtotal
     order.discount = 0.0
@@ -439,12 +424,8 @@ def add_order_item(
     if not product or not product.is_active:
         raise HTTPException(status_code=400, detail="Товар не найден")
 
-    try:
-        add_product_to_order(db, order, product, data.quantity)
-        db.commit()
-    except InsufficientStockError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+    add_product_to_order(db, order, product, data.quantity)
+    db.commit()
 
     order = (
         db.query(Order)
@@ -490,10 +471,6 @@ def update_order_item_quantity(
         db.delete(item)
     elif data.quantity > item.quantity:
         diff = data.quantity - item.quantity
-        try:
-            check_simple_product_stock(db, item.product, diff)
-        except InsufficientStockError as e:
-            raise HTTPException(status_code=400, detail=str(e))
         additional_cost = deduct_from_batches(db, item.product_id, diff, item)
         item.quantity = data.quantity
         item.total = item.price * item.quantity
@@ -599,6 +576,7 @@ def pay_order(
 @router.post("/{order_id}/cancel", response_model=OrderResponse)
 def cancel_order(
     order_id: int,
+    data: OrderCancelRequest,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -619,6 +597,12 @@ def cancel_order(
         raise HTTPException(status_code=404, detail="Заказ не найден")
     if order.status == "cancelled":
         raise HTTPException(status_code=400, detail="Заказ уже отменён")
+    if order.status != "open":
+        raise HTTPException(status_code=400, detail="Отменить можно только открытый заказ")
+
+    comment = data.comment.strip()
+    if not comment:
+        raise HTTPException(status_code=400, detail="Укажите причину отмены")
 
     for item in order.items:
         if item.batch_allocations:
@@ -631,6 +615,10 @@ def cancel_order(
             session.cash_total -= order.total
 
     order.status = "cancelled"
+    if order.comment:
+        order.comment = f"{order.comment} | Отмена: {comment}"
+    else:
+        order.comment = f"Отмена: {comment}"
     db.commit()
 
     order = (

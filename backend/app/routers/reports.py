@@ -178,16 +178,12 @@ def dashboard_stats(
         .first()
     )
 
-    from app.models.product import ProductBatch, Product
+    from app.services.batch_service import get_product_stock
 
     products = db.query(Product).filter(Product.is_active == True, Product.is_kit == False).all()  # noqa: E712
     low_stock = []
     for p in products:
-        stock = sum(
-            b.remaining_quantity
-            for b in p.batches
-            if b.is_active and b.remaining_quantity > 0
-        )
+        stock = get_product_stock(db, p.id)
         if stock <= p.min_stock:
             low_stock.append({
                 "id": p.id,
