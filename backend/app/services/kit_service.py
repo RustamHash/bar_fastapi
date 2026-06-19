@@ -1,6 +1,15 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.product import Product, KitComponent
+
+
+def load_product_with_components(db: Session, product_id: int) -> Product | None:
+    return (
+        db.query(Product)
+        .options(joinedload(Product.kit_components).joinedload(KitComponent.component))
+        .filter(Product.id == product_id)
+        .first()
+    )
 
 
 def calculate_kit_price(db: Session, kit: Product) -> float:
@@ -21,6 +30,7 @@ def expand_kit_components(
     """Expand kit into component requirements."""
     components = (
         db.query(KitComponent)
+        .options(joinedload(KitComponent.component))
         .filter(KitComponent.kit_id == kit.id)
         .all()
     )

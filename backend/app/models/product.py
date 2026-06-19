@@ -51,14 +51,6 @@ class ProductBarcode(Base):
 
     product: Mapped["Product"] = relationship("Product", back_populates="barcodes")
 
-    @property
-    def stock(self) -> float:
-        if self.is_kit:
-            return 0.0
-        return sum(
-            b.remaining_quantity for b in self.batches if b.is_active and b.remaining_quantity > 0
-        )
-
 
 class KitComponent(Base):
     __tablename__ = "kit_components"

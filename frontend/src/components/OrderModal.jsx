@@ -4,9 +4,11 @@ import {
 } from 'antd';
 import {
   PlusOutlined, MinusOutlined, CheckOutlined, PrinterOutlined, SearchOutlined,
+  CloseOutlined, SaveOutlined,
 } from '@ant-design/icons';
 import { ordersApi, productsApi, receiptApi } from '../api';
 import { payOrderWithCashCheck } from '../utils/payOrder';
+import { getProductSalePrice } from '../utils/productPrice';
 import OpenCashGateModal from './OpenCashGateModal';
 import ReceiptModal from './ReceiptModal';
 
@@ -28,6 +30,9 @@ export default function OrderModal({
   const [receipt, setReceipt] = useState(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [cashGateOpen, setCashGateOpen] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelComment, setCancelComment] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -40,6 +45,8 @@ export default function OrderModal({
       setCurrentOrder(order);
       setComment(order?.comment || '');
       setSearch('');
+      setCancelComment('');
+      setCancelModalOpen(false);
     }
   }, [open, order]);
 
@@ -115,6 +122,31 @@ export default function OrderModal({
     onUpdated?.();
   };
 
+  const handleCancel = async () => {
+    if (!cancelComment.trim()) {
+      message.error('Укажите причину отмены');
+      return;
+    }
+    setCancelling(true);
+    try {
+      await ordersApi.cancel(currentOrder.id, { comment: cancelComment.trim() });
+      message.success('Заказ отменён');
+      setCancelModalOpen(false);
+      onClose();
+      onUpdated?.();
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'Ошибка отмены');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const handleSave = () => {
+    message.success('Заказ сохранён');
+    onClose();
+    onUpdated?.();
+  };
+
   const handlePrint = async () => {
     setReceiptOpen(true);
     setReceiptLoading(true);
@@ -129,6 +161,8 @@ export default function OrderModal({
   };
 
   const mainItems = currentOrder?.items?.filter((i) => !i.is_kit_component) || [];
+  const isOpen = currentOrder?.status === 'open';
+  const displayTotal = mainItems.reduce((sum, i) => sum + i.total, 0) || currentOrder?.total || 0;
 
   return (
     <>
@@ -143,6 +177,7 @@ export default function OrderModal({
         footer={null}
         width={720}
         destroyOnClose
+        zIndex={1100}
       >
         {!currentOrder ? (
           <>
@@ -182,69 +217,109 @@ export default function OrderModal({
                 >
                   <span>{item.product_name}</span>
                   <Space>
-                    <Button
-                      size="small"
-                      icon={<MinusOutlined />}
-                      onClick={() => changeQuantity(item, -1)}
-                    />
-                    <Text>{item.quantity}</Text>
-                    <Button size="small" icon={<PlusOutlined />} onClick={() => changeQuantity(item, 1)} />
+                    {isOpen && (
+                      <>
+                        <Button
+                          size="small"
+                          icon={<MinusOutlined />}
+                          onClick={() => changeQuantity(item, -1)}
+                        />
+                        <Text>{item.quantity}</Text>
+                        <Button size="small" icon={<PlusOutlined />} onClick={() => changeQuantity(item, 1)} />
+                      </>
+                    )}
+                    {!isOpen && <Text>{item.quantity} шт</Text>}
                     <Text strong>{item.total.toFixed(0)} ₽</Text>
                   </Space>
                 </div>
               ))
             )}
 
-            <Divider />
+            {isOpen && (
+              <>
+                <Divider />
 
-            <Title level={5}>Быстрое добавление</Title>
-            <Row gutter={[8, 8]} style={{ marginBottom: 16 }}>
-              {popularProducts.map((p) => (
-                <Col key={p.id} span={8}>
-                  <Button block onClick={() => addProduct(p.id)} style={{ height: 'auto', padding: '8px 4px' }}>
-                    <div style={{ fontSize: 12, whiteSpace: 'normal', lineHeight: 1.3 }}>{p.name}</div>
-                    <div style={{ fontSize: 11, opacity: 0.7 }}>{p.retail_price} ₽</div>
-                  </Button>
-                </Col>
-              ))}
-            </Row>
+                <Title level={5}>Быстрое добавление</Title>
+                <Row gutter={[8, 8]} style={{ marginBottom: 16 }}>
+                  {popularProducts.map((p) => (
+                    <Col key={p.id} span={8}>
+                      <Button block onClick={() => addProduct(p.id)} style={{ height: 'auto', padding: '8px 4px' }}>
+                        <div style={{ fontSize: 12, whiteSpace: 'normal', lineHeight: 1.3 }}>{p.name}</div>
+                        <div style={{ fontSize: 11, opacity: 0.7 }}>{getProductSalePrice(p)} ₽</div>
+                      </Button>
+                    </Col>
+                  ))}
+                </Row>
 
-            <Input
-              prefix={<SearchOutlined />}
-              placeholder="Поиск товара..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ marginBottom: 8 }}
-            />
-            {search && (
-              <div style={{ maxHeight: 120, overflow: 'auto', marginBottom: 16 }}>
-                {filteredProducts.slice(0, 8).map((p) => (
-                  <Button
-                    key={p.id}
-                    type="link"
-                    block
-                    style={{ textAlign: 'left' }}
-                    onClick={() => { addProduct(p.id); setSearch(''); }}
-                  >
-                    {p.name} — {p.retail_price} ₽
-                  </Button>
-                ))}
-              </div>
+                <Input
+                  prefix={<SearchOutlined />}
+                  placeholder="Поиск товара..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{ marginBottom: 8 }}
+                />
+                {search && (
+                  <div style={{ maxHeight: 120, overflow: 'auto', marginBottom: 16 }}>
+                    {filteredProducts.slice(0, 8).map((p) => (
+                      <Button
+                        key={p.id}
+                        type="link"
+                        block
+                        style={{ textAlign: 'left' }}
+                        onClick={() => { addProduct(p.id); setSearch(''); }}
+                      >
+                        {p.name} — {getProductSalePrice(p)} ₽
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
               <Title level={4} style={{ margin: 0 }}>
-                Итого: {currentOrder.total.toFixed(0)} ₽
+                Итого: {displayTotal.toFixed(0)} ₽
               </Title>
               <Space>
                 <Button icon={<PrinterOutlined />} onClick={handlePrint}>Чек</Button>
-                <Button type="primary" icon={<CheckOutlined />} onClick={handlePay}>
-                  Оплатить
-                </Button>
+                {isOpen && (
+                  <>
+                    <Button icon={<SaveOutlined />} onClick={handleSave}>
+                      Сохранить
+                    </Button>
+                    <Button danger icon={<CloseOutlined />} onClick={() => setCancelModalOpen(true)}>
+                      Отменить
+                    </Button>
+                    <Button type="primary" icon={<CheckOutlined />} onClick={handlePay}>
+                      Оплатить
+                    </Button>
+                  </>
+                )}
               </Space>
             </div>
           </>
         )}
+      </Modal>
+
+      <Modal
+        title="Отмена заказа"
+        open={cancelModalOpen}
+        onCancel={() => { setCancelModalOpen(false); setCancelComment(''); }}
+        onOk={handleCancel}
+        okText="Отменить заказ"
+        okButtonProps={{ danger: true, loading: cancelling }}
+        cancelText="Назад"
+        zIndex={1200}
+      >
+        <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+          Укажите причину отмены
+        </Text>
+        <Input.TextArea
+          value={cancelComment}
+          onChange={(e) => setCancelComment(e.target.value)}
+          rows={3}
+          placeholder="Например: гость передумал, ошибка в заказе..."
+        />
       </Modal>
 
       <ReceiptModal

@@ -1,18 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Table, Button, Tag, Space, Typography, Select, Modal, InputNumber, message, Popconfirm,
+  Table, Button, Tag, Space, Typography, Select, Modal, InputNumber, Input, message,
   Progress, Drawer,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, PrinterOutlined,
-  ScanOutlined, EyeOutlined,
+  ScanOutlined, EyeOutlined, EditOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ordersApi, productsApi, receiptApi } from '../api';
-import { payOrderWithCashCheck } from '../utils/payOrder';
 import { caseInsensitiveFilterOption } from '../utils/selectFilter';
+import { getProductSalePrice } from '../utils/productPrice';
 import ReceiptModal from '../components/ReceiptModal';
-import OpenCashGateModal from '../components/OpenCashGateModal';
+import OrderModal from '../components/OrderModal';
 import { BarcodeInput } from '../components/BarcodeInput';
 import { playSound } from '../utils/sounds';
 
@@ -40,8 +40,10 @@ export default function Orders() {
   const [viewLoading, setViewLoading] = useState(false);
   const [pickMode, setPickMode] = useState(false);
   const [scanStatus, setScanStatus] = useState(null);
-  const [cashGateOpen, setCashGateOpen] = useState(false);
-  const [payOrderId, setPayOrderId] = useState(null);
+  const [editModal, setEditModal] = useState({ open: false, order: null, table: null });
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelComment, setCancelComment] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -76,7 +78,7 @@ export default function Orders() {
   const calcTotal = () => {
     return orderItems.reduce((sum, item) => {
       const product = products.find((p) => p.id === item.product_id);
-      return sum + (product ? product.retail_price * item.quantity : 0);
+      return sum + (product ? getProductSalePrice(product) * item.quantity : 0);
     }, 0);
   };
 
@@ -103,28 +105,16 @@ export default function Orders() {
     }
   };
 
-  const handlePay = async (id) => {
+  const openEdit = async (orderId, tableNumValue) => {
     try {
-      const result = await payOrderWithCashCheck(id);
-      if (result.needsCash) {
-        setPayOrderId(id);
-        setCashGateOpen(true);
-        return;
-      }
-      message.success('Заказ оплачен');
-      fetchOrders();
-    } catch (err) {
-      message.error(err.response?.data?.detail || 'Ошибка');
-    }
-  };
-
-  const handleCancel = async (id) => {
-    try {
-      await ordersApi.cancel(id);
-      message.success('Заказ отменён');
-      fetchOrders();
-    } catch (err) {
-      message.error(err.response?.data?.detail || 'Ошибка');
+      const res = await ordersApi.get(orderId);
+      setEditModal({
+        open: true,
+        order: res.data,
+        table: { number: tableNumValue },
+      });
+    } catch {
+      message.error('Ошибка загрузки заказа');
     }
   };
 
@@ -144,6 +134,8 @@ export default function Orders() {
   const openOrderView = async (orderId) => {
     setViewLoading(true);
     setPickMode(false);
+    setCancelComment('');
+    setCancelModalOpen(false);
     try {
       const res = await ordersApi.get(orderId);
       setViewOrder(res.data);
@@ -153,6 +145,26 @@ export default function Orders() {
       message.error('Ошибка загрузки заказа');
     } finally {
       setViewLoading(false);
+    }
+  };
+
+  const handleCancelFromView = async () => {
+    if (!cancelComment.trim()) {
+      message.error('Укажите причину отмены');
+      return;
+    }
+    setCancelling(true);
+    try {
+      await ordersApi.cancel(viewOrder.id, { comment: cancelComment.trim() });
+      message.success('Заказ отменён');
+      setCancelModalOpen(false);
+      setViewOrder(null);
+      setPickMode(false);
+      fetchOrders();
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'Ошибка');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -227,21 +239,14 @@ export default function Orders() {
       render: (_, record) => (
         <Space>
           {record.status === 'open' && (
-            <>
-              <Button
-                size="small"
-                type="primary"
-                icon={<CheckOutlined />}
-                onClick={() => handlePay(record.id)}
-              >
-                Оплатить
-              </Button>
-              <Popconfirm title="Отменить заказ?" onConfirm={() => handleCancel(record.id)}>
-                <Button size="small" danger icon={<CloseOutlined />}>
-                  Отменить
-                </Button>
-              </Popconfirm>
-            </>
+            <Button
+              size="small"
+              type="primary"
+              icon={<EditOutlined />}
+              onClick={() => openEdit(record.id, record.table_num)}
+            >
+              Редактировать
+            </Button>
           )}
           <Button
             size="small"
@@ -311,7 +316,7 @@ export default function Orders() {
               onChange={(v) => updateItem(item.key, 'product_id', v)}
               options={products.map((p) => ({
                 value: p.id,
-                label: `${p.name} — ${p.retail_price} ₽`,
+                label: `${p.name} — ${getProductSalePrice(p)} ₽`,
               }))}
             />
             <InputNumber
@@ -343,6 +348,14 @@ export default function Orders() {
         onClose={() => { setReceiptOpen(false); setReceipt(null); }}
       />
 
+      <OrderModal
+        open={editModal.open}
+        table={editModal.table}
+        order={editModal.order}
+        onClose={() => setEditModal({ open: false, order: null, table: null })}
+        onUpdated={fetchOrders}
+      />
+
       <Drawer
         title={viewOrder ? `Заказ #${viewOrder.id} — стол ${viewOrder.table_num}` : 'Заказ'}
         open={!!viewOrder}
@@ -356,9 +369,20 @@ export default function Orders() {
             </Button>
           ) : null
         }
+        footer={
+          viewOrder?.status === 'open' && !pickMode ? (
+            <Button danger icon={<CloseOutlined />} onClick={() => setCancelModalOpen(true)}>
+              Отменить заказ
+            </Button>
+          ) : null
+        }
       >
         {viewOrder && (
           <>
+            {viewOrder.comment && (
+              <div style={{ marginBottom: 12, color: '#666' }}>{viewOrder.comment}</div>
+            )}
+
             {pickMode && (
               <div style={{ marginBottom: 16 }}>
                 <BarcodeInput onScan={handleOrderScan} />
@@ -401,19 +425,25 @@ export default function Orders() {
         )}
       </Drawer>
 
-      <OpenCashGateModal
-        open={cashGateOpen}
-        orderId={payOrderId}
-        onSuccess={() => {
-          setCashGateOpen(false);
-          setPayOrderId(null);
-          fetchOrders();
-        }}
-        onCancel={() => {
-          setCashGateOpen(false);
-          setPayOrderId(null);
-        }}
-      />
+      <Modal
+        title="Отмена заказа"
+        open={cancelModalOpen}
+        onCancel={() => { setCancelModalOpen(false); setCancelComment(''); }}
+        onOk={handleCancelFromView}
+        okText="Отменить заказ"
+        okButtonProps={{ danger: true, loading: cancelling }}
+        cancelText="Назад"
+      >
+        <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+          Укажите причину отмены
+        </Typography.Text>
+        <Input.TextArea
+          value={cancelComment}
+          onChange={(e) => setCancelComment(e.target.value)}
+          rows={3}
+          placeholder="Например: гость передумал, ошибка в заказе..."
+        />
+      </Modal>
     </div>
   );
 }

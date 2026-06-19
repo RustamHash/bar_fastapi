@@ -14,7 +14,7 @@ from app.schemas.order import (
     OrderItemAdd, OrderItemQuantityUpdate, OrderCancelRequest,
 )
 from app.services.batch_service import deduct_from_batches, return_to_batches
-from app.services.kit_service import calculate_kit_price, expand_kit_components
+from app.services.kit_service import calculate_kit_price, expand_kit_components, load_product_with_components
 from app.services.barcode_service import normalize_barcode, find_product_by_barcode
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
@@ -173,6 +173,93 @@ def process_order_item(
     return subtotal, total_cost
 
 
+def get_kit_child_item(order: Order, parent_item_id: int, component_id: int) -> OrderItem | None:
+    return next(
+        (
+            i for i in order.items
+            if i.parent_kit_item_id == parent_item_id and i.product_id == component_id
+        ),
+        None,
+    )
+
+
+def delete_kit_order_item(db: Session, order: Order, main_item: OrderItem) -> None:
+    for child in [i for i in order.items if i.parent_kit_item_id == main_item.id]:
+        return_to_batches(db, child)
+        db.delete(child)
+    db.delete(main_item)
+
+
+def adjust_kit_order_item_quantity(
+    db: Session,
+    order: Order,
+    main_item: OrderItem,
+    new_quantity: float,
+) -> None:
+    kit = load_product_with_components(db, main_item.product_id)
+    if not kit:
+        raise HTTPException(status_code=400, detail="Комплект не найден")
+
+    if new_quantity <= 0:
+        delete_kit_order_item(db, order, main_item)
+        return
+
+    old_qty = main_item.quantity
+    if new_quantity == old_qty:
+        return
+
+    kit_price = calculate_kit_price(db, kit)
+
+    if new_quantity > old_qty:
+        diff = new_quantity - old_qty
+        expanded = expand_kit_components(db, kit, diff)
+        for exp in expanded:
+            comp = exp["component"]
+            kc = exp["kit_component"]
+            comp_qty = exp["quantity"]
+            child = get_kit_child_item(order, main_item.id, comp.id)
+            if child:
+                comp_cost = deduct_from_batches(db, comp.id, comp_qty, child)
+                child.quantity += comp_qty
+                child.cost_price += comp_cost
+            else:
+                child = OrderItem(
+                    order_id=order.id,
+                    product_id=comp.id,
+                    quantity=comp_qty,
+                    price=0.0,
+                    total=0.0,
+                    cost_price=0.0,
+                    is_kit_component=True,
+                    parent_kit_item_id=main_item.id,
+                    kit_id=kit.id,
+                    show_in_receipt=kc.show_in_receipt,
+                )
+                db.add(child)
+                db.flush()
+                comp_cost = deduct_from_batches(db, comp.id, comp_qty, child)
+                child.cost_price = comp_cost
+            main_item.cost_price += comp_cost
+    else:
+        diff = old_qty - new_quantity
+        expanded = expand_kit_components(db, kit, diff)
+        for exp in expanded:
+            comp_qty = exp["quantity"]
+            child = get_kit_child_item(order, main_item.id, exp["component"].id)
+            if not child:
+                continue
+            cost_returned = return_quantity_from_item(db, child, comp_qty)
+            child.quantity -= comp_qty
+            child.cost_price = max(0, child.cost_price - cost_returned)
+            if child.quantity <= 0:
+                db.delete(child)
+            main_item.cost_price = max(0, main_item.cost_price - cost_returned)
+
+    main_item.quantity = new_quantity
+    main_item.price = kit_price
+    main_item.total = kit_price * new_quantity
+
+
 def recalculate_order_totals(order: Order) -> None:
     main_items = [i for i in order.items if not i.is_kit_component]
     order.subtotal = sum(i.total for i in main_items)
@@ -235,7 +322,9 @@ def add_product_to_order(
         .first()
     )
 
-    if existing and not product.is_kit:
+    if existing and product.is_kit:
+        adjust_kit_order_item_quantity(db, order, existing, existing.quantity + quantity)
+    elif existing and not product.is_kit:
         additional_cost = deduct_from_batches(db, product.id, quantity, existing)
         existing.quantity += quantity
         existing.total = existing.price * existing.quantity
@@ -366,9 +455,14 @@ def create_order(
 ):
     if data.items:
         for item_data in data.items:
-            product = db.query(Product).filter(Product.id == item_data.product_id).first()
+            product = load_product_with_components(db, item_data.product_id)
             if not product or not product.is_active:
                 raise HTTPException(status_code=400, detail=f"Товар {item_data.product_id} не найден")
+            if not product.sellable:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Товар «{product.name}» недоступен для продажи",
+                )
 
     order = Order(
         table_num=data.table_num.strip(),
@@ -382,7 +476,7 @@ def create_order(
     total_cost = 0.0
 
     for item_data in data.items:
-        product = db.query(Product).filter(Product.id == item_data.product_id).first()
+        product = load_product_with_components(db, item_data.product_id)
         s, c = process_order_item(db, order, product, item_data.quantity)
         subtotal += s
         total_cost += c
@@ -420,9 +514,11 @@ def add_order_item(
     if order.status != "open":
         raise HTTPException(status_code=400, detail="Заказ уже закрыт")
 
-    product = db.query(Product).filter(Product.id == data.product_id).first()
+    product = load_product_with_components(db, data.product_id)
     if not product or not product.is_active:
         raise HTTPException(status_code=400, detail="Товар не найден")
+    if not product.sellable:
+        raise HTTPException(status_code=400, detail="Товар недоступен для продажи")
 
     add_product_to_order(db, order, product, data.quantity)
     db.commit()
@@ -464,7 +560,16 @@ def update_order_item_quantity(
     if not item:
         raise HTTPException(status_code=404, detail="Позиция не найдена")
     if item.product.is_kit:
-        raise HTTPException(status_code=400, detail="Изменение количества комплекта не поддерживается")
+        adjust_kit_order_item_quantity(db, order, item, data.quantity)
+        recalculate_order_totals(order)
+        db.commit()
+        order = (
+            db.query(Order)
+            .options(joinedload(Order.items).joinedload(OrderItem.product))
+            .filter(Order.id == order.id)
+            .first()
+        )
+        return build_order_response(order, db)
 
     if data.quantity <= 0:
         return_to_batches(db, item)

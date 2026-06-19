@@ -265,6 +265,9 @@ def update_product(
                 )
             )
 
+    if product.is_kit:
+        product.sellable = True
+
     db.commit()
     product = product_query(db).filter(Product.id == product.id).first()
     return build_product_response(db, product)

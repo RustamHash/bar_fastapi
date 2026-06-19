@@ -6,13 +6,13 @@ import {
 import { PlusOutlined, DeleteOutlined, BarcodeOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import { productsApi } from '../api';
 import { caseInsensitiveFilterOption } from '../utils/selectFilter';
+import { formatComponentUnitPrice, formatProductPrice } from '../utils/productPrice';
 
 const CATEGORIES = [
   { value: 'beer', label: 'Пиво' },
   { value: 'snack', label: 'Закуски' },
   { value: 'packaging', label: 'Тара' },
   { value: 'other', label: 'Прочее' },
-  { value: 'kit', label: 'Комплект' },
 ];
 
 const UNITS = [
@@ -159,6 +159,16 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
     }
   };
 
+  const handleKitToggle = (checked) => {
+    setIsKit(checked);
+    if (checked) {
+      const currentCategory = form.getFieldValue('category');
+      if (!currentCategory || currentCategory === 'packaging') {
+        form.setFieldsValue({ category: 'beer', unit: 'piece', sellable: true });
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
@@ -248,7 +258,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
           onChange={(v) => updateComponent(record.key, 'component_id', v)}
           options={availableComponents.map((p) => ({
             value: p.id,
-            label: `${p.name} (${p.retail_price} ₽)`,
+            label: `${p.name} (${formatProductPrice(p)})`,
           }))}
         />
       ),
@@ -267,8 +277,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
       ),
     },
     {
-      title: 'Цена',
-      dataIndex: 'price_override',
+      title: 'Цена/ед.',
       width: 100,
       render: (_, record) => (
         <InputNumber
@@ -357,12 +366,18 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
           <Form.Item name="unit" label="Ед. изм." rules={[{ required: true }]}>
             <Select options={UNITS} />
           </Form.Item>
-          <Form.Item name="retail_price" label="Розничная цена" rules={[{ required: true }]}>
+          <Form.Item
+            name="retail_price"
+            label={isKit ? 'Цена продажи' : 'Розничная цена'}
+            rules={[{ required: true }]}
+          >
             <InputNumber min={0} style={{ width: '100%' }} addonAfter="₽" />
           </Form.Item>
-          <Form.Item name="min_stock" label="Мин. остаток">
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
+          {!isKit && (
+            <Form.Item name="min_stock" label="Мин. остаток">
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+          )}
           {!isKit && (
             <>
               <Form.Item
@@ -378,7 +393,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
             </>
           )}
           <Form.Item label="Это комплект">
-            <Switch checked={isKit} onChange={setIsKit} />
+            <Switch checked={isKit} onChange={handleKitToggle} />
           </Form.Item>
           {isKit && (
             <Form.Item name="kit_price_type" label="Тип цены комплекта">
