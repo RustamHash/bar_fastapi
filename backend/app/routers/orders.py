@@ -11,7 +11,7 @@ from app.routers.auth import get_current_user, User
 from app.schemas.order import (
     OrderCreate, OrderResponse, OrderItemResponse, OrderListResponse,
     OrderScanRequest, OrderScanResponse, OrderScanStatusResponse, OrderScanStatusItem,
-    OrderItemAdd, OrderItemQuantityUpdate, OrderCancelRequest,
+    OrderItemAdd, OrderItemQuantityUpdate, OrderCancelRequest, OrderUpdate,
 )
 from app.services.batch_service import deduct_from_batches, return_to_batches
 from app.services.kit_service import (
@@ -88,11 +88,16 @@ def build_order_item_response(item: OrderItem, db: Session) -> OrderItemResponse
         kit_component_qty=kit_component_qty,
         kit_order_quantity=kit_order_quantity,
         unit_price=unit_price,
+        created_at=item.created_at,
     )
 
 
 def build_order_response(order: Order, db: Session) -> OrderResponse:
-    items = [build_order_item_response(item, db) for item in order.items]
+    sorted_items = sorted(
+        order.items,
+        key=lambda i: (i.is_kit_component, i.created_at, i.id),
+    )
+    items = [build_order_item_response(item, db) for item in sorted_items]
     return OrderResponse(
         id=order.id,
         table_num=order.table_num,
@@ -335,28 +340,7 @@ def add_product_to_order(
     product: Product,
     quantity: float,
 ) -> None:
-    existing = (
-        db.query(OrderItem)
-        .filter(
-            OrderItem.order_id == order.id,
-            OrderItem.product_id == product.id,
-            OrderItem.is_kit_component == False,  # noqa: E712
-        )
-        .first()
-    )
-
-    if existing and product.is_kit:
-        adjust_kit_order_item_quantity(db, order, existing, existing.quantity + quantity)
-    elif existing and not product.is_kit:
-        additional_cost = deduct_from_batches(db, product.id, quantity, existing)
-        existing.quantity += quantity
-        existing.total = existing.price * existing.quantity
-        existing.cost_price += additional_cost
-    else:
-        subtotal, total_cost = process_order_item(db, order, product, quantity)
-        order.subtotal += subtotal
-        order.total_cost += total_cost
-
+    process_order_item(db, order, product, quantity)
     recalculate_order_totals(order)
 
 
@@ -669,6 +653,38 @@ def get_order(
     )
     if not order:
         raise HTTPException(status_code=404, detail="Заказ не найден")
+    return build_order_response(order, db)
+
+
+@router.patch("/{order_id}", response_model=OrderResponse)
+def update_order(
+    order_id: int,
+    data: OrderUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    order = (
+        db.query(Order)
+        .options(joinedload(Order.items).joinedload(OrderItem.product))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+    if order.status != "open":
+        raise HTTPException(status_code=400, detail="Изменить можно только открытый заказ")
+
+    if data.comment is not None:
+        order.comment = data.comment.strip() or None
+
+    db.commit()
+
+    order = (
+        db.query(Order)
+        .options(joinedload(Order.items).joinedload(OrderItem.product))
+        .filter(Order.id == order.id)
+        .first()
+    )
     return build_order_response(order, db)
 
 

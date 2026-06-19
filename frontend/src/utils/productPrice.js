@@ -47,6 +47,21 @@ export function formatOrderItemTotal(item) {
   return `${item.total} ₽`;
 }
 
+export function getComponentKitShare(component) {
+  const unitPrice = component.price_override ?? component.component_price;
+  return unitPrice * component.quantity;
+}
+
+export function formatComponentKitShare(component) {
+  const unitPrice = component.price_override ?? component.component_price;
+  const share = unitPrice * component.quantity;
+  const unit = productUnitLabel(component.component_unit);
+  if (component.quantity === 1) {
+    return `${share} ₽`;
+  }
+  return `${unitPrice} ₽/${unit} × ${component.quantity} = ${share} ₽`;
+}
+
 export function formatComponentUnitPrice(component) {
   const unitPrice = component.price_override ?? component.component_price;
   const unit = productUnitLabel(component.component_unit);

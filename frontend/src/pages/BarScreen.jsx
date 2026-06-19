@@ -3,7 +3,7 @@ import {
   Typography, Button, Modal, Input, Space, Badge, Popover, Card,
   message, Popconfirm,
 } from 'antd';
-import { PlusOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons';
+import { PlusOutlined, CloseOutlined, EditOutlined, BorderOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { tablesApi, ordersApi } from '../api';
 import OrderModal from '../components/OrderModal';
@@ -11,6 +11,9 @@ import OrderModal from '../components/OrderModal';
 const { Title, Text } = Typography;
 
 const TABLE_SIZE = { width: 80, height: 80 };
+const GRID_SIZE = 20;
+
+const snapToGrid = (value) => Math.max(0, Math.round(value / GRID_SIZE) * GRID_SIZE);
 
 function getUser() {
   try {
@@ -33,7 +36,9 @@ export default function BarScreen() {
   const [newNumber, setNewNumber] = useState('');
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [newTableNumber, setNewTableNumber] = useState('');
+  const [popoverTableId, setPopoverTableId] = useState(null);
   const dragRef = useRef({ tableId: null, startX: 0, startY: 0, origX: 0, origY: 0 });
+  const didDragRef = useRef(false);
   const isAdmin = getUser()?.role === 'admin';
 
   const fetchTables = useCallback(async () => {
@@ -57,12 +62,14 @@ export default function BarScreen() {
   };
 
   const openNewOrder = (table) => {
+    setPopoverTableId(null);
     setSelectedTable(table);
     setCurrentOrder(null);
     setOrderModalOpen(true);
   };
 
   const openExistingOrder = async (table, orderId) => {
+    setPopoverTableId(null);
     setSelectedTable(table);
     const res = await ordersApi.get(orderId);
     setCurrentOrder(res.data);
@@ -70,12 +77,7 @@ export default function BarScreen() {
   };
 
   const handleTableClick = async (table) => {
-    if (editMode) {
-      setRenameTable(table);
-      setNewNumber(table.number);
-      setRenameModalOpen(true);
-      return;
-    }
+    if (editMode) return;
     if (!table.has_open_orders) {
       openNewOrder(table);
     } else {
@@ -114,8 +116,8 @@ export default function BarScreen() {
     try {
       await tablesApi.create({
         number: newTableNumber.trim(),
-        position_x: 200,
-        position_y: 200,
+        position_x: snapToGrid(200),
+        position_y: snapToGrid(200),
       });
       message.success('Стол добавлен');
       setAddModalOpen(false);
@@ -126,10 +128,18 @@ export default function BarScreen() {
     }
   };
 
+  const openRename = (table, e) => {
+    e?.stopPropagation();
+    setRenameTable(table);
+    setNewNumber(table.number);
+    setRenameModalOpen(true);
+  };
+
   const handleDragStart = (e, table) => {
     if (!editMode) return;
     e.stopPropagation();
     e.preventDefault();
+    didDragRef.current = false;
     dragRef.current = {
       tableId: table.id,
       startX: e.clientX,
@@ -144,9 +154,16 @@ export default function BarScreen() {
     if (!drag.tableId) return;
     const dx = e.clientX - drag.startX;
     const dy = e.clientY - drag.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      didDragRef.current = true;
+    }
     setTables((prev) => prev.map((t) =>
       t.id === drag.tableId
-        ? { ...t, position_x: Math.max(0, drag.origX + dx), position_y: Math.max(0, drag.origY + dy) }
+        ? {
+            ...t,
+            position_x: snapToGrid(Math.max(0, drag.origX + dx)),
+            position_y: snapToGrid(Math.max(0, drag.origY + dy)),
+          }
         : t
     ));
   }, []);
@@ -154,19 +171,54 @@ export default function BarScreen() {
   const handleDragEnd = useCallback(async () => {
     const drag = dragRef.current;
     if (!drag.tableId) return;
-    const table = tables.find((t) => t.id === drag.tableId);
+    const tableId = drag.tableId;
     dragRef.current = { tableId: null };
-    if (!table) return;
+
+    let snappedTable = null;
+    setTables((prev) => prev.map((t) => {
+      if (t.id === tableId) {
+        snappedTable = {
+          ...t,
+          position_x: snapToGrid(t.position_x),
+          position_y: snapToGrid(t.position_y),
+        };
+        return snappedTable;
+      }
+      return t;
+    }));
+
+    if (!snappedTable) return;
     try {
-      await tablesApi.update(table.id, {
-        position_x: table.position_x,
-        position_y: table.position_y,
+      await tablesApi.update(snappedTable.id, {
+        position_x: snappedTable.position_x,
+        position_y: snappedTable.position_y,
       });
     } catch {
       message.error('Ошибка сохранения позиции');
       fetchTables();
     }
-  }, [tables, fetchTables]);
+  }, [fetchTables]);
+
+  const alignAllToGrid = async () => {
+    const snapped = tables.map((t) => ({
+      ...t,
+      position_x: snapToGrid(t.position_x),
+      position_y: snapToGrid(t.position_y),
+    }));
+    setTables(snapped);
+    try {
+      await Promise.all(
+        snapped.map((t) => tablesApi.update(t.id, {
+          position_x: t.position_x,
+          position_y: t.position_y,
+        })),
+      );
+      message.success('Столы выровнены по сетке');
+    } catch {
+      message.error('Ошибка сохранения');
+      fetchTables();
+    }
+  };
 
   useEffect(() => {
     if (!editMode) return undefined;
@@ -212,7 +264,13 @@ export default function BarScreen() {
     const tableEl = (
       <div
         onMouseDown={(e) => handleDragStart(e, table)}
-        onClick={() => handleTableClick(table)}
+        onClick={() => {
+          if (didDragRef.current) {
+            didDragRef.current = false;
+            return;
+          }
+          handleTableClick(table);
+        }}
         style={{
           position: 'absolute',
           left: table.position_x,
@@ -233,19 +291,28 @@ export default function BarScreen() {
         }}
       >
         {editMode && (
-          <Popconfirm
-            title="Удалить стол?"
-            onConfirm={(e) => handleDeleteTable(table.id, e)}
-            onCancel={(e) => e?.stopPropagation()}
-          >
+          <>
             <Button
               type="text"
               size="small"
-              icon={<CloseOutlined />}
-              style={{ position: 'absolute', top: 2, right: 2, color: '#fff' }}
-              onClick={(e) => e.stopPropagation()}
+              icon={<EditOutlined />}
+              style={{ position: 'absolute', top: 2, left: 2, color: '#fff' }}
+              onClick={(e) => openRename(table, e)}
             />
-          </Popconfirm>
+            <Popconfirm
+              title="Удалить стол?"
+              onConfirm={(e) => handleDeleteTable(table.id, e)}
+              onCancel={(e) => e?.stopPropagation()}
+            >
+              <Button
+                type="text"
+                size="small"
+                icon={<CloseOutlined />}
+                style={{ position: 'absolute', top: 2, right: 2, color: '#fff' }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Popconfirm>
+          </>
         )}
         <Text strong style={{ color: '#fff', fontSize: 14, textAlign: 'center', padding: '0 4px' }}>
           {table.number}
@@ -265,10 +332,14 @@ export default function BarScreen() {
       return (
         <Popover
           key={table.id}
+          open={popoverTableId === table.id}
           content={renderOrdersPopover(table)}
           title={`Стол ${table.number}`}
           trigger="click"
-          onOpenChange={(visible) => { if (visible) loadTableOrders(table.id); }}
+          onOpenChange={(visible) => {
+            setPopoverTableId(visible ? table.id : null);
+            if (visible) loadTableOrders(table.id);
+          }}
         >
           {tableEl}
         </Popover>
@@ -290,6 +361,9 @@ export default function BarScreen() {
           )}
           {isAdmin && editMode && (
             <>
+              <Button icon={<BorderOutlined />} onClick={alignAllToGrid}>
+                Выровнять по сетке
+              </Button>
               <Button icon={<PlusOutlined />} onClick={() => setAddModalOpen(true)}>
                 Добавить стол
               </Button>
@@ -305,7 +379,12 @@ export default function BarScreen() {
       <div style={{
         position: 'relative',
         minHeight: 500,
-        background: '#f5f5f5',
+        backgroundColor: '#f5f5f5',
+        backgroundImage: editMode
+          ? `linear-gradient(to right, #d9d9d9 1px, transparent 1px),
+             linear-gradient(to bottom, #d9d9d9 1px, transparent 1px)`
+          : undefined,
+        backgroundSize: editMode ? `${GRID_SIZE}px ${GRID_SIZE}px` : undefined,
         borderRadius: 8,
         border: '1px solid #d9d9d9',
         overflow: 'auto',

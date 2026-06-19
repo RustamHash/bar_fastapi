@@ -11,6 +11,7 @@ import { payOrderWithCashCheck } from '../utils/payOrder';
 import { getProductSalePrice } from '../utils/productPrice';
 import OpenCashGateModal from './OpenCashGateModal';
 import ReceiptModal from './ReceiptModal';
+import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 
@@ -141,10 +142,31 @@ export default function OrderModal({
     }
   };
 
-  const handleSave = () => {
-    message.success('Заказ сохранён');
+  const handleSave = async () => {
+    if (!currentOrder || currentOrder.status !== 'open') {
+      onClose();
+      onUpdated?.();
+      return;
+    }
+    const trimmed = comment.trim();
+    const savedComment = trimmed || null;
+    if (savedComment !== (currentOrder.comment || null)) {
+      setSaving(true);
+      try {
+        const res = await ordersApi.update(currentOrder.id, { comment: savedComment });
+        setCurrentOrder(res.data);
+        message.success('Заказ сохранён');
+        onUpdated?.();
+      } catch (err) {
+        message.error(err.response?.data?.detail || 'Ошибка сохранения');
+        return;
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      message.success('Заказ сохранён');
+    }
     onClose();
-    onUpdated?.();
   };
 
   const handlePrint = async () => {
@@ -160,7 +182,8 @@ export default function OrderModal({
     }
   };
 
-  const mainItems = currentOrder?.items?.filter((i) => !i.is_kit_component) || [];
+  const mainItems = (currentOrder?.items?.filter((i) => !i.is_kit_component) || [])
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
   const isOpen = currentOrder?.status === 'open';
   const displayTotal = mainItems.reduce((sum, i) => sum + i.total, 0) || currentOrder?.total || 0;
 
@@ -194,11 +217,21 @@ export default function OrderModal({
           </>
         ) : (
           <>
-            {currentOrder.comment && (
+            {isOpen ? (
+              <Input.TextArea
+                placeholder="Комментарий: парень в кепке, девушка у окна..."
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={2}
+                style={{ marginBottom: 12 }}
+                maxLength={255}
+                showCount
+              />
+            ) : currentOrder.comment ? (
               <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
                 {currentOrder.comment}
               </Text>
-            )}
+            ) : null}
 
             <Title level={5}>Позиции</Title>
             {mainItems.length === 0 ? (
@@ -215,7 +248,14 @@ export default function OrderModal({
                     borderBottom: '1px solid #f0f0f0',
                   }}
                 >
-                  <span>{item.product_name}</span>
+                  <div>
+                    <div>{item.product_name}</div>
+                    {item.created_at && (
+                      <Text type="secondary" style={{ fontSize: 11 }}>
+                        {dayjs(item.created_at).format('HH:mm:ss')}
+                      </Text>
+                    )}
+                  </div>
                   <Space>
                     {isOpen && (
                       <>
@@ -284,14 +324,14 @@ export default function OrderModal({
                 <Button icon={<PrinterOutlined />} onClick={handlePrint}>Чек</Button>
                 {isOpen && (
                   <>
-                    <Button icon={<SaveOutlined />} onClick={handleSave}>
-                      Сохранить
+                    <Button type="primary" icon={<CheckOutlined />} onClick={handlePay}>
+                      Оплатить
                     </Button>
                     <Button danger icon={<CloseOutlined />} onClick={() => setCancelModalOpen(true)}>
                       Отменить
                     </Button>
-                    <Button type="primary" icon={<CheckOutlined />} onClick={handlePay}>
-                      Оплатить
+                    <Button icon={<SaveOutlined />} onClick={handleSave} loading={saving}>
+                      Сохранить
                     </Button>
                   </>
                 )}

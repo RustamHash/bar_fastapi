@@ -44,6 +44,14 @@ def run_migrations(engine: Engine) -> None:
                 conn.execute(text(
                     "ALTER TABLE order_items ADD COLUMN scanned_quantity FLOAT DEFAULT 0"
                 ))
+            if "created_at" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE order_items ADD COLUMN created_at DATETIME"
+                ))
+                conn.execute(text(
+                    "UPDATE order_items SET created_at = CURRENT_TIMESTAMP "
+                    "WHERE created_at IS NULL"
+                ))
 
         had_bar_tables = "bar_tables" in existing_tables
         had_tables = "tables" in existing_tables

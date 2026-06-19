@@ -42,6 +42,7 @@ class OrderItemResponse(BaseModel):
     kit_component_qty: float | None = None
     kit_order_quantity: float | None = None
     unit_price: float | None = None
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -79,6 +80,10 @@ class OrderListResponse(BaseModel):
     paid_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class OrderUpdate(BaseModel):
+    comment: str | None = None
 
 
 class OrderCancelRequest(BaseModel):

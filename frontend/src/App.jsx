@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import BarScreen from './pages/BarScreen';
 import Products from './pages/Products';
 import Orders from './pages/Orders';
+import OrderDetail from './pages/OrderDetail';
 import Invoices from './pages/Invoices';
 import CashRegister from './pages/CashRegister';
 import Reports from './pages/Reports';
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="bar" element={<BarScreen />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="orders" element={<Orders />} />
+          <Route path="orders/:id" element={<OrderDetail />} />
           <Route path="products" element={<Products />} />
           <Route path="invoices" element={<Invoices />} />
           <Route path="receiving" element={<Receiving />} />

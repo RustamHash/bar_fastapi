@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons';
 import { productsApi } from '../api';
 import ProductForm from '../components/ProductForm';
-import { formatComponentUnitPrice } from '../utils/productPrice';
+import { formatComponentKitShare, formatProductPrice } from '../utils/productPrice';
 
 const { Title } = Typography;
 
@@ -93,8 +93,8 @@ export default function Products() {
             render: (_, r) => `${r.quantity} ${UNIT_LABELS[r.component_unit] || r.component_unit}`,
           },
           {
-            title: 'Цена/ед.',
-            render: (_, r) => formatComponentUnitPrice(r),
+            title: 'В комплекте',
+            render: (_, r) => formatComponentKitShare(r),
           },
           {
             title: 'В чеке',
@@ -120,10 +120,7 @@ export default function Products() {
     },
     {
       title: 'Цена',
-      dataIndex: 'retail_price',
-      render: (v, record) => (
-        record.is_kit ? `${v} ₽` : `${v} ₽/${UNIT_LABELS[record.unit] || record.unit}`
-      ),
+      render: (_, record) => formatProductPrice(record),
     },
     {
       title: 'Штрихкод',

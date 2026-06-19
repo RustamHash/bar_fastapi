@@ -12,8 +12,24 @@ class InvoiceItemCreate(BaseModel):
 class InvoiceCreate(BaseModel):
     supplier: str
     date: date
+    invoice_number: str | None = None
     comment: str | None = None
     items: list[InvoiceItemCreate]
+
+
+class InvoiceItemUpdate(BaseModel):
+    id: int | None = None
+    product_id: int
+    quantity: float
+    purchase_price: float
+
+
+class InvoiceUpdate(BaseModel):
+    supplier: str
+    date: date
+    invoice_number: str | None = None
+    comment: str | None = None
+    items: list[InvoiceItemUpdate]
 
 
 class InvoiceItemResponse(BaseModel):

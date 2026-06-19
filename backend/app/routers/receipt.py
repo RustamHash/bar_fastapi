@@ -9,6 +9,24 @@ from app.routers.auth import get_current_user, User
 router = APIRouter(prefix="/api/receipt", tags=["receipt"])
 
 
+def consolidate_receipt_items(items: list[dict]) -> list[dict]:
+    """Merge identical lines for customer receipt."""
+    merged: dict[tuple, dict] = {}
+    for item in items:
+        key = (
+            item["name"],
+            round(item["price"], 2),
+            item.get("is_kit_component", False),
+            item.get("kit_name"),
+        )
+        if key in merged:
+            merged[key]["quantity"] += item["quantity"]
+            merged[key]["total"] += item["total"]
+        else:
+            merged[key] = dict(item)
+    return list(merged.values())
+
+
 def get_receipt_items(order: Order, db: Session, mode: str = "receipt") -> list[dict]:
     items = []
     for item in order.items:
@@ -115,7 +133,7 @@ def get_receipt(
         "created_at": order.created_at.isoformat(),
         "paid_at": order.paid_at.isoformat() if order.paid_at else None,
         "status": order.status,
-        "items": receipt_items,
+        "items": consolidate_receipt_items(receipt_items),
         "subtotal": order.subtotal,
         "discount": order.discount,
         "total": order.total,

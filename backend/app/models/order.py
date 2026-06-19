@@ -55,10 +55,15 @@ class OrderItem(Base):
     order: Mapped["Order"] = relationship("Order", back_populates="items", foreign_keys=[order_id])
     product: Mapped["Product"] = relationship("Product", foreign_keys=[product_id])
     parent_kit_item: Mapped["OrderItem | None"] = relationship(
-        "OrderItem", remote_side=[id], foreign_keys=[parent_kit_item_id]
+        "OrderItem",
+        remote_side=[id],
+        foreign_keys=[parent_kit_item_id],
+        back_populates="child_items",
     )
     child_items: Mapped[list["OrderItem"]] = relationship(
-        "OrderItem", foreign_keys=[parent_kit_item_id]
+        "OrderItem",
+        foreign_keys=[parent_kit_item_id],
+        back_populates="parent_kit_item",
     )
     batch_allocations: Mapped[list["OrderItemBatch"]] = relationship(
         "OrderItemBatch", back_populates="order_item", cascade="all, delete-orphan"

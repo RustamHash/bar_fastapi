@@ -65,6 +65,7 @@ export const ordersApi = {
   get: (id) => api.get(`/orders/${id}`),
   create: (data) => api.post('/orders', data),
   pay: (id) => api.post(`/orders/${id}/pay`),
+  update: (id, data) => api.patch(`/orders/${id}`, data),
   cancel: (id, data) => api.post(`/orders/${id}/cancel`, data),
   scan: (data) => api.post('/orders/scan', data),
   scanStatus: (id) => api.get(`/orders/${id}/scan-status`),
