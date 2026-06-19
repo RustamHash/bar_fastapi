@@ -15,6 +15,7 @@ async def lifespan(app: FastAPI):
     run_migrations(engine)
     db = SessionLocal()
     try:
+        pass
         #seed_database(db)
     finally:
         db.close()

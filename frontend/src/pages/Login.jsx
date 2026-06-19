@@ -51,7 +51,7 @@ export default function Login() {
             </Select>
           </Form.Item>
           <Form.Item name="password" label="Пароль" rules={[{ required: true, message: 'Введите пароль' }]}>
-            <Input.Password size="large" placeholder="123" />
+            <Input.Password size="large" placeholder="Пароль" />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading} block size="large">
