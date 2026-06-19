@@ -67,8 +67,6 @@ export const ordersApi = {
   pay: (id) => api.post(`/orders/${id}/pay`),
   update: (id, data) => api.patch(`/orders/${id}`, data),
   cancel: (id, data) => api.post(`/orders/${id}/cancel`, data),
-  scan: (data) => api.post('/orders/scan', data),
-  scanStatus: (id) => api.get(`/orders/${id}/scan-status`),
   addItem: (orderId, data) => api.post(`/orders/${orderId}/items`, data),
   updateItem: (orderId, itemId, data) => api.patch(`/orders/${orderId}/items/${itemId}`, data),
 };

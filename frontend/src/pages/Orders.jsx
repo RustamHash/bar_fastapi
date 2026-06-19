@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Table, Button, Tag, Space, Typography, Select, Modal, InputNumber, message,
+  Table, Button, Tag, Space, Typography, Select, Modal, InputNumber, message, Tooltip,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, PrinterOutlined, EyeOutlined, EditOutlined,
@@ -129,11 +129,13 @@ export default function Orders() {
     {
       title: 'Сумма',
       dataIndex: 'total',
+      width: 100,
       render: (v) => `${v.toFixed(2)} ₽`,
     },
     {
-      title: 'Себестоимость',
+      title: 'Себест.',
       dataIndex: 'total_cost',
+      width: 100,
       render: (v) => `${v.toFixed(2)} ₽`,
     },
     {
@@ -153,36 +155,39 @@ export default function Orders() {
     {
       title: 'Создан',
       dataIndex: 'created_at',
+      width: 130,
       render: (v) => dayjs(v).format('DD.MM.YYYY HH:mm'),
     },
     {
-      title: 'Действия',
+      title: '',
+      width: 120,
+      fixed: 'right',
       render: (_, record) => (
-        <Space>
+        <Space size={4}>
           {record.status === 'open' && (
+            <Tooltip title="Редактировать">
+              <Button
+                size="small"
+                type="primary"
+                icon={<EditOutlined />}
+                onClick={() => openEdit(record.id, record.table_num)}
+              />
+            </Tooltip>
+          )}
+          <Tooltip title="Чек">
             <Button
               size="small"
-              type="primary"
-              icon={<EditOutlined />}
-              onClick={() => openEdit(record.id, record.table_num)}
-            >
-              Редактировать
-            </Button>
-          )}
-          <Button
-            size="small"
-            icon={<PrinterOutlined />}
-            onClick={() => handlePrint(record.id)}
-          >
-            Чек
-          </Button>
-          <Button
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => navigate(`/orders/${record.id}`)}
-          >
-            Просмотр
-          </Button>
+              icon={<PrinterOutlined />}
+              onClick={() => handlePrint(record.id)}
+            />
+          </Tooltip>
+          <Tooltip title="Просмотр">
+            <Button
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => navigate(`/orders/${record.id}`)}
+            />
+          </Tooltip>
         </Space>
       ),
     },
@@ -190,9 +195,16 @@ export default function Orders() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 16,
+      }}>
         <Title level={3} style={{ margin: 0 }}>Заказы</Title>
-        <Space>
+        <Space wrap>
           <Select
             allowClear
             placeholder="Статус"
@@ -211,7 +223,13 @@ export default function Orders() {
         </Space>
       </div>
 
-      <Table dataSource={orders} columns={columns} rowKey="id" loading={loading} />
+      <Table
+        dataSource={orders}
+        columns={columns}
+        rowKey="id"
+        loading={loading}
+        scroll={{ x: 1000 }}
+      />
 
       <Modal
         title="Новый заказ"
@@ -221,16 +239,27 @@ export default function Orders() {
         confirmLoading={creating}
         width={600}
         okText="Создать заказ"
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
       >
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ marginRight: 8 }}>Стол:</span>
+        <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          <span>Стол:</span>
           <InputNumber min={1} value={tableNum} onChange={setTableNum} />
         </div>
         {orderItems.map((item) => (
-          <Space key={item.key} style={{ display: 'flex', marginBottom: 8 }}>
+          <div
+            key={item.key}
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 8,
+              alignItems: 'center',
+              marginBottom: 8,
+              width: '100%',
+            }}
+          >
             <Select
               showSearch
-              style={{ width: 280 }}
+              style={{ flex: '1 1 200px', minWidth: 180, maxWidth: 320 }}
               placeholder="Выберите товар"
               filterOption={caseInsensitiveFilterOption}
               value={item.product_id}
@@ -245,6 +274,7 @@ export default function Orders() {
               step={1}
               value={item.quantity}
               onChange={(v) => updateItem(item.key, 'quantity', v)}
+              style={{ width: 90 }}
             />
             <Button
               type="text"
@@ -252,7 +282,7 @@ export default function Orders() {
               icon={<DeleteOutlined />}
               onClick={() => removeItem(item.key)}
             />
-          </Space>
+          </div>
         ))}
         <Button type="dashed" icon={<PlusOutlined />} onClick={addItem} block>
           Добавить позицию

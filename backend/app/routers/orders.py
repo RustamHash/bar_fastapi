@@ -292,7 +292,9 @@ def recalculate_order_totals(order: Order) -> None:
     main_items = [i for i in order.items if not i.is_kit_component]
     order.subtotal = sum(i.total for i in main_items)
     order.total = order.subtotal - order.discount
-    order.total_cost = sum(i.cost_price for i in order.items)
+    # Себестоимость только на основных строках: для комплекта cost_price уже
+    # включает сумму компонентов, иначе получается двойной подсчёт.
+    order.total_cost = sum(i.cost_price for i in main_items)
 
 
 def return_quantity_from_item(db: Session, item: OrderItem, return_qty: float) -> float:

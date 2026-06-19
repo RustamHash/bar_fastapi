@@ -112,3 +112,12 @@ def run_migrations(engine: Engine) -> None:
                     "ALTER TABLE product_batches ADD COLUMN invoice_item_id INTEGER "
                     "REFERENCES invoice_items(id)"
                 ))
+
+        if "orders" in existing_tables and "order_items" in existing_tables:
+            conn.execute(text("""
+                UPDATE orders SET total_cost = (
+                    SELECT COALESCE(SUM(oi.cost_price), 0)
+                    FROM order_items oi
+                    WHERE oi.order_id = orders.id AND oi.is_kit_component = 0
+                )
+            """))

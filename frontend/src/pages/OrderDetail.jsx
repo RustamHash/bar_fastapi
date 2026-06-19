@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Button, Typography, Space, message, Card, Table, Tag, Descriptions, Modal, Input,
-  Progress, Divider, Statistic, Row, Col,
+  Divider, Statistic, Row, Col,
 } from 'antd';
 import {
-  ArrowLeftOutlined, PrinterOutlined, EditOutlined, CloseOutlined, ScanOutlined,
+  ArrowLeftOutlined, PrinterOutlined, EditOutlined, CloseOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ordersApi, receiptApi } from '../api';
@@ -14,8 +14,6 @@ import {
 } from '../utils/productPrice';
 import ReceiptModal from '../components/ReceiptModal';
 import OrderModal from '../components/OrderModal';
-import { BarcodeInput } from '../components/BarcodeInput';
-import { playSound } from '../utils/sounds';
 
 const { Title, Text } = Typography;
 
@@ -30,8 +28,6 @@ export default function OrderDetail() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
-  const [scanStatus, setScanStatus] = useState(null);
-  const [pickMode, setPickMode] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
@@ -45,8 +41,6 @@ export default function OrderDetail() {
     try {
       const res = await ordersApi.get(id);
       setOrder(res.data);
-      const statusRes = await ordersApi.scanStatus(id);
-      setScanStatus(statusRes.data);
     } catch {
       message.error('Не удалось загрузить заказ');
       navigate('/orders');
@@ -91,33 +85,6 @@ export default function OrderDetail() {
     }
   };
 
-  const handleOrderScan = async (barcode) => {
-    try {
-      const res = await ordersApi.scan({ order_id: order.id, barcode });
-      const data = res.data;
-      if (!data.in_order) {
-        playSound('error');
-        message.warning(`${data.product_name} — не в заказе`);
-      } else if (data.order_complete) {
-        playSound('success');
-        message.success('Заказ полностью собран!');
-      } else {
-        playSound('success');
-        message.info(`${data.product_name}: ${data.scanned} / ${data.scanned + data.need}`);
-      }
-      loadOrder();
-    } catch (err) {
-      playSound('error');
-      message.error(err.response?.data?.detail || 'Ошибка сканирования');
-    }
-  };
-
-  const calcPickProgress = () => {
-    if (!scanStatus?.items?.length) return 0;
-    const complete = scanStatus.items.filter((i) => i.complete).length;
-    return Math.round(complete / scanStatus.items.length * 100);
-  };
-
   if (loading && !order) {
     return <Card loading />;
   }
@@ -132,26 +99,7 @@ export default function OrderDetail() {
   const margin = order.total - order.total_cost;
   const displayTotal = mainItems.reduce((sum, i) => sum + i.total, 0) || order.total;
 
-  const itemColumns = pickMode ? [
-    { title: 'Товар', dataIndex: 'product_name' },
-    {
-      title: 'Нужно',
-      dataIndex: 'quantity',
-      width: 80,
-      render: (v) => `${v} шт`,
-    },
-    {
-      title: 'Собрано',
-      render: (_, r) => {
-        const color = r.complete ? 'green' : r.scanned_quantity > 0 ? 'gold' : 'default';
-        return (
-          <Tag color={color}>
-            {r.scanned_quantity} / {r.quantity}
-          </Tag>
-        );
-      },
-    },
-  ] : [
+  const itemColumns = [
     {
       title: 'Время',
       dataIndex: 'created_at',
@@ -210,23 +158,15 @@ export default function OrderDetail() {
           <Button icon={<PrinterOutlined />} onClick={handlePrint}>
             Чек
           </Button>
-          {order.status === 'open' && !pickMode && (
+          {order.status === 'open' && (
             <>
               <Button type="primary" icon={<EditOutlined />} onClick={() => setEditModalOpen(true)}>
                 Редактировать
-              </Button>
-              <Button icon={<ScanOutlined />} onClick={() => setPickMode(true)}>
-                Режим сборки
               </Button>
               <Button danger icon={<CloseOutlined />} onClick={() => setCancelModalOpen(true)}>
                 Отменить
               </Button>
             </>
-          )}
-          {pickMode && (
-            <Button onClick={() => setPickMode(false)}>
-              Выйти из сборки
-            </Button>
           )}
         </Space>
       </div>
@@ -247,13 +187,6 @@ export default function OrderDetail() {
                   ? dayjs(order.paid_at).format('DD.MM.YYYY HH:mm:ss')
                   : '—'}
               </Descriptions.Item>
-              {order.status === 'open' && (
-                <Descriptions.Item label="Сборка">
-                  <Tag color={order.all_scanned ? 'green' : 'default'}>
-                    {order.all_scanned ? 'Собран полностью' : 'Не собран'}
-                  </Tag>
-                </Descriptions.Item>
-              )}
               {order.cash_session_id && (
                 <Descriptions.Item label="Кассовая смена">
                   №{order.cash_session_id}
@@ -311,31 +244,21 @@ export default function OrderDetail() {
         </Col>
       </Row>
 
-      {pickMode && (
-        <Card title="Сканирование" size="small" style={{ marginBottom: 16 }}>
-          <BarcodeInput onScan={handleOrderScan} />
-          <Progress percent={calcPickProgress()} style={{ marginTop: 12 }} />
-        </Card>
-      )}
-
       <Card
-        title={pickMode ? 'Позиции для сборки' : `Позиции (${mainItems.length})`}
+        title={`Позиции (${mainItems.length})`}
         size="small"
         style={{ marginBottom: 16 }}
       >
         <Table
-          dataSource={
-            pickMode
-              ? scanStatus?.items || []
-              : mainItems
-          }
-          rowKey={(r) => r.id || r.product_name}
+          dataSource={mainItems}
+          rowKey="id"
           pagination={false}
           size="small"
           loading={loading}
           columns={itemColumns}
+          scroll={{ x: 600 }}
           locale={{ emptyText: 'Нет позиций' }}
-          summary={() => !pickMode && mainItems.length > 0 ? (
+          summary={() => mainItems.length > 0 ? (
             <Table.Summary.Row>
               <Table.Summary.Cell index={0} colSpan={4} align="right">
                 <Text strong>Итого:</Text>
@@ -348,13 +271,14 @@ export default function OrderDetail() {
         />
       </Card>
 
-      {kitComponents.length > 0 && !pickMode && (
+      {kitComponents.length > 0 && (
         <Card title={`Состав комплектов (${kitComponents.length})`} size="small">
           <Table
             dataSource={kitComponents}
             rowKey="id"
             pagination={false}
             size="small"
+            scroll={{ x: 500 }}
             columns={[
               {
                 title: 'Комплект',
