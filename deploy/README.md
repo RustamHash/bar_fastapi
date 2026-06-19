@@ -100,7 +100,7 @@ cat ~/.ssh/beerpub_deploy
 
 ### Git pull на сервере
 
-Для `git pull` в workflow репозиторий на сервере должен иметь доступ к GitHub:
+Для обновления кода в workflow репозиторий на сервере должен иметь доступ к GitHub:
 
 ```bash
 # На сервере — deploy key или SSH URL
@@ -110,6 +110,17 @@ git remote -v
 ```
 
 При необходимости добавьте deploy key в **GitHub → Settings → Deploy keys**.
+
+Деплой использует `git reset --hard origin/main` — локальные правки **отслеживаемых** файлов
+(`.env.example`, `deploy/README.md` и т.д.) сбрасываются. Файл `.env` в git не входит и не затрагивается.
+
+Если деплой упал с `would be overwritten by merge`, на сервере вручную:
+
+```bash
+cd /data/projects/bar_fastapi
+git fetch origin main
+git reset --hard origin/main
+```
 
 ## Проверка деплоя
 
