@@ -53,6 +53,7 @@ def build_product_response(db: Session, product: Product) -> ProductResponse:
         is_kit=product.is_kit,
         kit_price_type=product.kit_price_type,
         is_active=product.is_active,
+        show_in_search=product.show_in_search,
         barcode=product.barcode,
         created_at=product.created_at,
         updated_at=product.updated_at,
@@ -137,6 +138,24 @@ def available_components(
     return [build_product_response(db, p) for p in products]
 
 
+@router.get("/sellable", response_model=list[ProductResponse])
+def list_sellable_products(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    products = (
+        db.query(Product)
+        .options(joinedload(Product.kit_components).joinedload(KitComponent.component))
+        .filter(
+            Product.is_active == True,  # noqa: E712
+            Product.show_in_search == True,  # noqa: E712
+        )
+        .order_by(Product.name)
+        .all()
+    )
+    return [build_product_response(db, p) for p in products]
+
+
 @router.get("/{product_id}", response_model=ProductResponse)
 def get_product(
     product_id: int,
@@ -182,6 +201,7 @@ def create_product(
         is_kit=data.is_kit,
         kit_price_type=data.kit_price_type if data.is_kit else None,
         barcode=normalize_barcode(data.barcode) if data.barcode else None,
+        show_in_search=True if data.is_kit else data.show_in_search,
     )
     db.add(product)
     db.flush()

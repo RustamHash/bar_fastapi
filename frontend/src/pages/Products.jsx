@@ -4,6 +4,7 @@ import {
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, HistoryOutlined, StopOutlined,
+  CheckOutlined, CloseOutlined,
 } from '@ant-design/icons';
 import { productsApi } from '../api';
 import ProductForm from '../components/ProductForm';
@@ -119,6 +120,12 @@ export default function Products() {
       title: 'Штрихкод',
       dataIndex: 'barcode',
       render: (v) => v || '—',
+    },
+    {
+      title: 'В продаже',
+      dataIndex: 'show_in_search',
+      width: 100,
+      render: (v) => (v ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CloseOutlined style={{ color: '#ff4d4f' }} />),
     },
     {
       title: 'Остаток',

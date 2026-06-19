@@ -51,7 +51,7 @@ export default function Orders() {
 
   useEffect(() => {
     fetchOrders();
-    productsApi.list().then((res) => setProducts(res.data));
+    productsApi.getSellable().then((res) => setProducts(res.data));
   }, [fetchOrders]);
 
   const addItem = () => {

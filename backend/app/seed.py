@@ -4,6 +4,29 @@ from sqlalchemy.orm import Session
 
 from app.models.product import Product, KitComponent, ProductBatch
 from app.models.invoice import Invoice, InvoiceItem
+from app.models.table import BarTable
+
+
+def seed_tables(db: Session) -> None:
+    if db.query(BarTable).first():
+        return
+
+    layout = [
+        {"number": 1, "label": "1", "position_x": 40, "position_y": 40, "section": "main", "capacity": 4},
+        {"number": 2, "label": "2", "position_x": 160, "position_y": 40, "section": "main", "capacity": 4},
+        {"number": 3, "label": "3", "position_x": 280, "position_y": 40, "section": "main", "capacity": 4},
+        {"number": 4, "label": "4", "position_x": 400, "position_y": 40, "section": "main", "capacity": 6},
+        {"number": 5, "label": "5", "position_x": 100, "position_y": 180, "section": "main", "capacity": 2},
+        {"number": 6, "label": "6", "position_x": 280, "position_y": 180, "section": "main", "capacity": 2},
+        {"number": 7, "label": "T1", "position_x": 40, "position_y": 320, "section": "terrace", "capacity": 4},
+        {"number": 8, "label": "T2", "position_x": 200, "position_y": 320, "section": "terrace", "capacity": 4},
+        {"number": 9, "label": "VIP", "position_x": 520, "position_y": 120, "section": "vip", "capacity": 8, "width": 100, "height": 100},
+    ]
+
+    for tdata in layout:
+        db.add(BarTable(**tdata))
+
+    db.commit()
 
 
 def seed_database(db: Session) -> None:
@@ -11,14 +34,14 @@ def seed_database(db: Session) -> None:
         return
 
     products_data = [
-        {"name": "Жигулевское (литр)", "category": "beer", "unit": "liter", "retail_price": 400, "min_stock": 10, "abv": 4.5, "barcode": "4601234567010"},
-        {"name": "Чешское (литр)", "category": "beer", "unit": "liter", "retail_price": 500, "min_stock": 10, "abv": 4.8, "barcode": "4601234567027"},
-        {"name": "IPA (литр)", "category": "beer", "unit": "liter", "retail_price": 700, "min_stock": 5, "abv": 6.5, "barcode": "4601234567034"},
-        {"name": "Бутылка ПЭТ 1.5л", "category": "packaging", "unit": "piece", "retail_price": 50, "min_stock": 20, "barcode": "4601234567041"},
-        {"name": "Крышка", "category": "packaging", "unit": "piece", "retail_price": 5, "min_stock": 50, "barcode": "4601234567058"},
-        {"name": "Бокал пластиковый", "category": "packaging", "unit": "piece", "retail_price": 30, "min_stock": 30, "barcode": "4601234567065"},
-        {"name": "Гренки чесночные", "category": "snack", "unit": "piece", "retail_price": 150, "min_stock": 5, "barcode": "4601234567072"},
-        {"name": "Кальмар сушёный", "category": "snack", "unit": "kg", "retail_price": 800, "min_stock": 2, "barcode": "4601234567089"},
+        {"name": "Жигулевское (литр)", "category": "beer", "unit": "liter", "retail_price": 400, "min_stock": 10, "abv": 4.5, "barcode": "4601234567010", "show_in_search": False},
+        {"name": "Чешское (литр)", "category": "beer", "unit": "liter", "retail_price": 500, "min_stock": 10, "abv": 4.8, "barcode": "4601234567027", "show_in_search": False},
+        {"name": "IPA (литр)", "category": "beer", "unit": "liter", "retail_price": 700, "min_stock": 5, "abv": 6.5, "barcode": "4601234567034", "show_in_search": False},
+        {"name": "Бутылка ПЭТ 1.5л", "category": "packaging", "unit": "piece", "retail_price": 50, "min_stock": 20, "barcode": "4601234567041", "show_in_search": False},
+        {"name": "Крышка", "category": "packaging", "unit": "piece", "retail_price": 5, "min_stock": 50, "barcode": "4601234567058", "show_in_search": False},
+        {"name": "Бокал пластиковый", "category": "packaging", "unit": "piece", "retail_price": 30, "min_stock": 30, "barcode": "4601234567065", "show_in_search": False},
+        {"name": "Гренки чесночные", "category": "snack", "unit": "piece", "retail_price": 150, "min_stock": 5, "barcode": "4601234567072", "show_in_search": True},
+        {"name": "Кальмар сушёный", "category": "snack", "unit": "kg", "retail_price": 800, "min_stock": 2, "barcode": "4601234567089", "show_in_search": True},
     ]
 
     products = {}
@@ -72,6 +95,7 @@ def seed_database(db: Session) -> None:
             min_stock=0,
             is_kit=True,
             kit_price_type="manual",
+            show_in_search=True,
         )
         db.add(kit)
         db.flush()

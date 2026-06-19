@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Input, InputNumber, Select, Switch, Tabs, Table, Button, Space, message } from 'antd';
+import { Modal, Form, Input, InputNumber, Select, Switch, Tabs, Table, Button, Space, message, Typography } from 'antd';
 import { PlusOutlined, DeleteOutlined, BarcodeOutlined } from '@ant-design/icons';
 import { productsApi } from '../api';
 
@@ -45,6 +45,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
         is_kit: product.is_kit,
         kit_price_type: product.kit_price_type || 'manual',
         barcode: product.barcode || '',
+        show_in_search: product.show_in_search ?? true,
       });
       setIsKit(product.is_kit);
       setComponents(
@@ -59,7 +60,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
       );
     } else {
       form.resetFields();
-      form.setFieldsValue({ kit_price_type: 'manual', min_stock: 0, barcode: '' });
+      form.setFieldsValue({ kit_price_type: 'manual', min_stock: 0, barcode: '', show_in_search: true });
       setIsKit(false);
       setComponents([]);
     }
@@ -85,6 +86,7 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
         barcode: values.barcode?.trim() || null,
         is_kit: isKit,
         kit_price_type: isKit ? values.kit_price_type : null,
+        show_in_search: isKit ? true : (values.show_in_search ?? true),
         components: isKit
           ? components.map((c) => ({
               component_id: c.component_id,
@@ -240,6 +242,20 @@ export default function ProductForm({ open, product, onClose, onSuccess }) {
           <Form.Item name="min_stock" label="Мин. остаток">
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
+          {!isKit && (
+            <>
+              <Form.Item
+                name="show_in_search"
+                label="Показывать при продаже"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+              <Typography.Text type="secondary" style={{ display: 'block', marginTop: -16, marginBottom: 16 }}>
+                Если выключено — товар не виден при создании заказа, используется только как компонент комплекта
+              </Typography.Text>
+            </>
+          )}
           {!isKit && (
             <Form.Item label="Штрихкод">
               <Space.Compact style={{ width: '100%' }}>

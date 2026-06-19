@@ -17,12 +17,24 @@ def run_migrations(engine: Engine) -> None:
                 conn.execute(text(
                     "CREATE INDEX IF NOT EXISTS ix_products_barcode ON products (barcode)"
                 ))
+            if "show_in_search" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE products ADD COLUMN show_in_search BOOLEAN DEFAULT TRUE"
+                ))
+                conn.execute(text(
+                    "UPDATE products SET show_in_search = FALSE "
+                    "WHERE is_kit = FALSE AND category IN ('beer', 'packaging')"
+                ))
 
         if "orders" in existing_tables:
             cols = {c["name"] for c in inspector.get_columns("orders")}
             if "all_scanned" not in cols:
                 conn.execute(text(
                     "ALTER TABLE orders ADD COLUMN all_scanned BOOLEAN DEFAULT FALSE"
+                ))
+            if "comment" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE orders ADD COLUMN comment VARCHAR(255)"
                 ))
 
         if "order_items" in existing_tables:

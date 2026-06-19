@@ -44,6 +44,7 @@ export const productsApi = {
   batches: (id) => api.get(`/products/${id}/batches`),
   priceHistory: (id) => api.get(`/products/${id}/price-history`),
   availableComponents: () => api.get('/products/available-components'),
+  getSellable: () => api.get('/products/sellable'),
   byBarcode: (barcode) => api.get(`/products/by-barcode/${encodeURIComponent(barcode)}`),
   bindBarcode: (id, barcode) => api.post(`/products/${id}/barcode`, { barcode }),
   unbindBarcode: (id) => api.delete(`/products/${id}/barcode`),
@@ -64,6 +65,17 @@ export const ordersApi = {
   cancel: (id) => api.post(`/orders/${id}/cancel`),
   scan: (data) => api.post('/orders/scan', data),
   scanStatus: (id) => api.get(`/orders/${id}/scan-status`),
+  addItem: (orderId, data) => api.post(`/orders/${orderId}/items`, data),
+  updateItem: (orderId, itemId, data) => api.patch(`/orders/${orderId}/items/${itemId}`, data),
+};
+
+export const tablesApi = {
+  list: (params) => api.get('/tables', { params }),
+  plan: () => api.get('/tables/plan'),
+  getOrders: (id) => api.get(`/tables/${id}/orders`),
+  create: (data) => api.post('/tables', data),
+  update: (id, data) => api.put(`/tables/${id}`, data),
+  delete: (id) => api.delete(`/tables/${id}`),
 };
 
 export const receivingApi = {
