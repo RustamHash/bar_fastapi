@@ -39,9 +39,12 @@ export default function Login() {
           <Typography.Text type="secondary">Система управления баром</Typography.Text>
         </div>
         <Form layout="vertical" onFinish={onFinish}>
-          <Form.Item name="username" label="Логин" rules={[{ required: true, message: 'Введите логин' }]}>
-            <Input size="large" placeholder="admin" />
-          </Form.Item>
+        <Form.Item name="username" label="Пользователь" rules={[{ required: true }]}>
+          <Select placeholder="Выберите пользователя">
+            <Select.Option value="amir">👑 Амир Русланович</Select.Option>
+            <Select.Option value="adam">🍺 Адам Аскерович</Select.Option>
+          </Select>
+        </Form.Item>
           <Form.Item name="password" label="Пароль" rules={[{ required: true, message: 'Введите пароль' }]}>
             <Input.Password size="large" placeholder="beer123" />
           </Form.Item>
