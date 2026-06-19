@@ -1,0 +1,21 @@
+# Скопируйте в docker-compose.override.yml для локальной разработки:
+# cp docker-compose.override.example.yml docker-compose.override.yml
+services:
+  backend:
+    volumes:
+      - ./backend:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  frontend:
+    build: !reset null
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    ports: !override
+      - "3000:5173"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_PROXY=http://backend:8000
