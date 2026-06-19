@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base, SessionLocal
-from app.seed import seed_database, seed_tables
 from app.migrate import run_migrations
 from app.routers import auth, products, invoices, orders, cash, receipt, reports, batches, receiving, tables
 
@@ -15,8 +14,7 @@ async def lifespan(app: FastAPI):
     run_migrations(engine)
     db = SessionLocal()
     try:
-        seed_database(db)
-        seed_tables(db)
+        pass
     finally:
         db.close()
     yield
