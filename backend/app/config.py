@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    app_name: str = "Берлога"
     database_url: str = "sqlite:///./beerpub.db"
     secret_key: str = "beerpub-secret-key-change-in-production"
     algorithm: str = "HS256"

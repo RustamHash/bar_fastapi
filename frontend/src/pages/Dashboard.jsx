@@ -75,7 +75,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <Title level={3}>Дашборд</Title>
+      <Title level={3}>Добро пожаловать в Берлогу</Title>
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={8}>
           <Card>

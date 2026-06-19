@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Card, Typography, message, Select } from 'antd';
-import { CoffeeOutlined } from '@ant-design/icons';
 import { authApi } from '../api';
 
 const { Title } = Typography;
@@ -35,12 +34,12 @@ export default function Login() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      background: 'linear-gradient(135deg, #2c1810 0%, #4a2c17 50%, #1a0f0a 100%)',
     }}>
-      <Card style={{ width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+      <Card style={{ width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <CoffeeOutlined style={{ fontSize: 48, color: '#faad14' }} />
-          <Title level={2} style={{ marginTop: 8 }}>BeerPub</Title>
+          <span style={{ fontSize: 56, lineHeight: 1 }} role="img" aria-label="медведь">🐻</span>
+          <Title level={2} style={{ marginTop: 8, color: '#8B5E3C' }}>Берлога</Title>
           <Typography.Text type="secondary">Система управления баром</Typography.Text>
         </div>
         <Form layout="vertical" onFinish={onFinish}>

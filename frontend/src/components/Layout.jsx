@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout as AntLayout, Menu, Button, theme } from 'antd';
+import { Layout as AntLayout, Menu, Button } from 'antd';
 import {
   DashboardOutlined,
   ShoppingCartOutlined,
@@ -8,12 +8,16 @@ import {
   DollarOutlined,
   BarChartOutlined,
   LogoutOutlined,
-  CoffeeOutlined,
   InboxOutlined,
   TableOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = AntLayout;
+
+const primaryColor = '#8B5E3C';
+const headerBackground = '#2c1810';
+const sidebarBackground = '#1a0f0a';
+const accentColor = '#D4A574';
 
 const menuItems = [
   { key: '/bar', icon: <TableOutlined />, label: 'План зала' },
@@ -38,7 +42,6 @@ function getCurrentUser() {
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { token: { colorBgContainer } } = theme.useToken();
   const currentUser = getCurrentUser();
 
   const handleLogout = () => {
@@ -47,49 +50,71 @@ export default function Layout() {
     navigate('/login');
   };
 
+  const selectedKey = menuItems.find((item) => location.pathname.startsWith(item.key))?.key
+    || location.pathname;
+
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
-      <Sider breakpoint="lg" collapsedWidth="0" theme="dark">
+      <Sider
+        breakpoint="lg"
+        collapsedWidth="0"
+        theme="dark"
+        style={{ background: sidebarBackground }}
+      >
         <div style={{
           height: 64,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#fff',
+          color: accentColor,
           fontSize: 20,
           fontWeight: 'bold',
           gap: 8,
+          background: sidebarBackground,
+          borderBottom: `1px solid ${primaryColor}`,
         }}>
-          <CoffeeOutlined style={{ fontSize: 24 }} />
-          BeerPub
+          <span style={{ fontSize: 28, lineHeight: 1 }} role="img" aria-label="медведь">🐻</span>
+          Берлога
         </div>
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
+          style={{ background: sidebarBackground }}
         />
       </Sider>
       <AntLayout>
         <Header style={{
           padding: '0 24px',
-          background: colorBgContainer,
+          background: headerBackground,
           display: 'flex',
           justifyContent: 'flex-end',
           alignItems: 'center',
           gap: 16,
+          borderBottom: `1px solid ${primaryColor}`,
         }}>
           {currentUser?.display_name && (
-            <span style={{ color: 'rgba(0, 0, 0, 0.65)' }}>
+            <span style={{ color: accentColor }}>
               {currentUser.display_name}
             </span>
           )}
-          <Button icon={<LogoutOutlined />} onClick={handleLogout}>
+          <Button
+            icon={<LogoutOutlined />}
+            onClick={handleLogout}
+            style={{ color: accentColor, borderColor: primaryColor }}
+          >
             Выход
           </Button>
         </Header>
-        <Content style={{ margin: 24, padding: 24, background: colorBgContainer, borderRadius: 8 }}>
+        <Content style={{
+          margin: 24,
+          padding: 24,
+          background: '#faf6f1',
+          borderRadius: 8,
+          border: `1px solid ${primaryColor}33`,
+        }}>
           <Outlet />
         </Content>
       </AntLayout>

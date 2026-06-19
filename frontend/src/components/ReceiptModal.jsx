@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 
 const UNIT_LABELS = { liter: 'л', piece: 'шт', kg: 'кг' };
 
-export default function ReceiptModal({ open, receipt, loading, onClose }) {
+export default function ReceiptModal({ open, receipt, loading, onClose, zIndex = 1300 }) {
   if (!receipt && !loading) return null;
 
   return (
@@ -13,6 +13,7 @@ export default function ReceiptModal({ open, receipt, loading, onClose }) {
       open={open}
       onCancel={onClose}
       width={400}
+      zIndex={zIndex}
       footer={[
         <Button key="close" onClick={onClose} className="no-print">
           Закрыть
@@ -33,7 +34,8 @@ export default function ReceiptModal({ open, receipt, loading, onClose }) {
       ) : (
         <div className="receipt-print-area receipt-content">
           <div className="receipt-header">
-            <h2>BEERPUB</h2>
+            <h2>🐻 Берлога</h2>
+            <div style={{ fontSize: 11, marginBottom: 4 }}>Бар • Пиво • Закуски</div>
             <div>{dayjs(receipt.created_at).format('DD.MM.YYYY HH:mm')}</div>
             <div>Заказ №{receipt.order_id}</div>
             <div>Стол: {receipt.table_num}</div>

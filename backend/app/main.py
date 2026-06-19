@@ -22,7 +22,12 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="BeerPub API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Берлога API",
+    description="Система управления баром Берлога",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
